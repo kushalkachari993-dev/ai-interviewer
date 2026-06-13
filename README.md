@@ -56,6 +56,18 @@ npm.cmd --prefix frontend run build
 
 After `frontend/dist` is built, FastAPI serves the React app from `http://127.0.0.1:8000`.
 
+## Deploy To Vercel
+
+Import the GitHub repository into Vercel and add these environment variables in the Vercel dashboard:
+
+```env
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_DISABLED=false
+```
+
+The repo includes `app.py` as Vercel's Python ASGI entrypoint and `vercel.json` to build the React frontend before FastAPI serves `frontend/dist`.
+
 ## API
 
 - `GET /api/health`
