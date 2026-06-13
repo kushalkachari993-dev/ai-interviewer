@@ -66,7 +66,7 @@ OPENAI_MODEL=gpt-4.1-mini
 OPENAI_DISABLED=false
 ```
 
-The repo includes `app.py` as Vercel's Python ASGI entrypoint and `vercel.json` to build the React frontend before FastAPI serves `frontend/dist`.
+The repo includes `api/index.py` as Vercel's Python ASGI entrypoint and `vercel.json` to build the React frontend into `frontend/dist`.
 
 ## API
 
