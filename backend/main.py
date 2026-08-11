@@ -39,6 +39,7 @@ LOGGER = logging.getLogger(__name__)
 
 AnswerText = Annotated[str, Field(min_length=1, max_length=MAX_ANSWER_CHARS)]
 FeedbackText = Annotated[str, Field(min_length=1, max_length=500)]
+TrackId = Literal["backend", "frontend", "cloud", "terraform", "devops", "system-design"]
 
 
 def load_env() -> dict[str, str]:
@@ -161,6 +162,17 @@ class AnswerSubmission(StrictModel):
         return stripped
 
 
+class SessionCreateRequest(StrictModel):
+    trackId: TrackId
+
+
+class TrackView(StrictModel):
+    id: TrackId
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(min_length=1, max_length=240)
+    skills: list[str] = Field(min_length=1, max_length=8)
+
+
 class StageView(StrictModel):
     index: int = Field(ge=0, lt=MAX_AGENTS)
     name: str
@@ -178,6 +190,7 @@ class StageView(StrictModel):
 
 class SessionView(StrictModel):
     sessionId: str
+    track: TrackView
     version: int = Field(ge=0)
     phase: Literal["primary", "follow_up", "complete"]
     activeIndex: int = Field(ge=0, lt=MAX_AGENTS)
@@ -195,6 +208,15 @@ class InterviewRubric:
     question_variants: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class InterviewTrack:
+    id: TrackId
+    name: str
+    description: str
+    skills: tuple[str, ...]
+    technical_rubrics: tuple[InterviewRubric, InterviewRubric]
+
+
 @dataclass
 class StageRecord:
     rubric: InterviewRubric
@@ -209,6 +231,7 @@ class StageRecord:
 @dataclass
 class InterviewSession:
     session_id: str
+    track: InterviewTrack
     stages: list[StageRecord]
     version: int = 0
     active_index: int = 0
@@ -301,6 +324,225 @@ RUBRICS = (
     ),
 )
 
+RESUME_RUBRIC = RUBRICS[0]
+HR_RUBRIC = RUBRICS[3]
+
+
+def technical_rubric(
+    *,
+    name: str,
+    short: str,
+    purpose: str,
+    metric: str,
+    question: str,
+    keywords: list[str],
+    sample: str,
+    variants: tuple[str, ...],
+) -> InterviewRubric:
+    return InterviewRubric(
+        agent=Agent(
+            name=name,
+            short=short,
+            purpose=purpose,
+            metric=metric,
+            question=question,
+            keywords=keywords,
+        ),
+        sample=sample,
+        question_variants=variants,
+    )
+
+
+TRACKS: dict[TrackId, InterviewTrack] = {
+    "backend": InterviewTrack(
+        id="backend",
+        name="Backend Engineering",
+        description="APIs, data modeling, service reliability, performance, and scalable backend architecture.",
+        skills=("APIs", "Databases", "Caching", "Queues", "Reliability"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Backend Agent",
+                short="BE",
+                purpose="Services and data",
+                metric="Backend engineering",
+                question="Design an idempotent order-creation API that remains correct during retries and partial failures.",
+                keywords=["idempotency", "transaction", "database", "retry", "api", "validation", "locking"],
+                sample="I would accept an idempotency key, persist it with the order in one transaction, enforce uniqueness, and return the stored result on retries. I would define validation, timeout, and failure semantics explicitly.",
+                variants=(
+                    "Design an idempotent order-creation API that remains correct during retries and partial failures.",
+                    "How would you model and expose a multi-tenant permissions API without leaking data between tenants?",
+                    "A read-heavy API is missing its latency SLO. How would you diagnose and improve it safely?",
+                ),
+            ),
+            technical_rubric(
+                name="Backend Scale Agent",
+                short="BS",
+                purpose="Scale and resilience",
+                metric="Backend scalability",
+                question="Design a reliable event-processing service that handles duplicates, retries, and poison messages.",
+                keywords=["queue", "deduplication", "retry", "dead-letter", "ordering", "observability", "backpressure"],
+                sample="I would use at-least-once delivery with idempotent consumers, bounded retries, a dead-letter queue, partition-aware ordering, backpressure, and metrics for lag, failures, and replay operations.",
+                variants=(
+                    "Design a reliable event-processing service that handles duplicates, retries, and poison messages.",
+                    "How would you migrate a large database table with no downtime and a safe rollback path?",
+                    "Design a caching strategy for a high-traffic catalog while controlling staleness and invalidation risk.",
+                ),
+            ),
+        ),
+    ),
+    "frontend": InterviewTrack(
+        id="frontend",
+        name="Frontend Engineering",
+        description="Accessible UI, state management, browser performance, testing, and frontend architecture.",
+        skills=("React", "Accessibility", "State", "Performance", "Testing"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Frontend Agent",
+                short="FE",
+                purpose="UI engineering",
+                metric="Frontend engineering",
+                question="Build an accessible autocomplete that handles latency, stale responses, and keyboard navigation.",
+                keywords=["accessibility", "keyboard", "debounce", "abort", "state", "loading", "testing"],
+                sample="I would use the combobox ARIA pattern, support arrow and escape keys, debounce input, cancel stale requests, announce loading and errors, and test keyboard, screen-reader, and race-condition behavior.",
+                variants=(
+                    "Build an accessible autocomplete that handles latency, stale responses, and keyboard navigation.",
+                    "How would you structure state for a complex form with validation, autosave, and server conflicts?",
+                    "A React page rerenders excessively. How would you measure, isolate, and fix the cause?",
+                ),
+            ),
+            technical_rubric(
+                name="Frontend Architecture Agent",
+                short="FA",
+                purpose="Web architecture",
+                metric="Frontend architecture",
+                question="Design the frontend architecture for a multi-team analytics dashboard with shared components.",
+                keywords=["boundaries", "design-system", "routing", "data", "performance", "testing", "deployment"],
+                sample="I would define domain boundaries, a versioned design system, typed API contracts, route-level code splitting, a consistent data-fetching layer, visual and integration tests, and independent ownership rules.",
+                variants=(
+                    "Design the frontend architecture for a multi-team analytics dashboard with shared components.",
+                    "How would you improve Core Web Vitals for a content-heavy application without harming functionality?",
+                    "Design an offline-capable web workflow that resolves edits made across multiple devices.",
+                ),
+            ),
+        ),
+    ),
+    "cloud": InterviewTrack(
+        id="cloud",
+        name="Cloud Engineering",
+        description="Cloud architecture, networking, security, reliability, observability, and cost control.",
+        skills=("Networking", "IAM", "Containers", "Observability", "Cost"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Cloud Agent",
+                short="CL",
+                purpose="Cloud architecture",
+                metric="Cloud architecture",
+                question="Design a secure multi-account cloud platform for several product teams.",
+                keywords=["accounts", "iam", "network", "guardrails", "logging", "secrets", "cost"],
+                sample="I would separate workloads by account and environment, centralize identity and audit logs, define network boundaries, enforce policy guardrails, manage secrets centrally, and allocate cost with tags and budgets.",
+                variants=(
+                    "Design a secure multi-account cloud platform for several product teams.",
+                    "How would you connect private workloads across regions while limiting blast radius?",
+                    "Design a cloud landing zone that balances team autonomy with security and cost controls.",
+                ),
+            ),
+            technical_rubric(
+                name="Cloud Reliability Agent",
+                short="CR",
+                purpose="Operations and resilience",
+                metric="Cloud reliability",
+                question="A regional cloud outage affects a critical service. Explain your failover and recovery design.",
+                keywords=["rto", "rpo", "failover", "replication", "dns", "runbook", "testing"],
+                sample="I would define RTO and RPO first, choose replication consistency accordingly, automate health-based failover, protect against split brain, maintain tested runbooks, and run recovery exercises regularly.",
+                variants=(
+                    "A regional cloud outage affects a critical service. Explain your failover and recovery design.",
+                    "How would you build observability for a container platform used by dozens of services?",
+                    "Cloud spend increased by 40 percent. How would you find savings without creating reliability risk?",
+                ),
+            ),
+        ),
+    ),
+    "terraform": InterviewTrack(
+        id="terraform",
+        name="Terraform / IaC",
+        description="Terraform modules, state, providers, delivery pipelines, policy, drift, and safe infrastructure change.",
+        skills=("Terraform", "State", "Modules", "Policy", "Drift"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Terraform Agent",
+                short="TF",
+                purpose="Infrastructure as code",
+                metric="Terraform engineering",
+                question="Design reusable Terraform modules for networking across multiple environments and accounts.",
+                keywords=["module", "state", "provider", "version", "validation", "output", "composition"],
+                sample="I would keep modules small and composable, pin providers, validate inputs, expose stable outputs, separate state by environment and blast radius, and version modules with migration guidance.",
+                variants=(
+                    "Design reusable Terraform modules for networking across multiple environments and accounts.",
+                    "How would you import existing cloud resources into Terraform without causing destructive changes?",
+                    "Explain how you would structure Terraform state for many teams and environments.",
+                ),
+            ),
+            technical_rubric(
+                name="IaC Delivery Agent",
+                short="IC",
+                purpose="Safe infrastructure delivery",
+                metric="Infrastructure delivery",
+                question="Design a Terraform CI/CD workflow with review, policy checks, apply controls, and drift detection.",
+                keywords=["plan", "apply", "approval", "policy", "drift", "locking", "rollback"],
+                sample="Pull requests would run formatting, validation, security and policy checks, then publish a saved plan. Protected apply jobs would require approval, use state locking, record audit data, and schedule drift detection.",
+                variants=(
+                    "Design a Terraform CI/CD workflow with review, policy checks, apply controls, and drift detection.",
+                    "A Terraform apply partially fails. How do you recover while preserving state integrity?",
+                    "How would you roll out a breaking provider upgrade across hundreds of workspaces?",
+                ),
+            ),
+        ),
+    ),
+    "devops": InterviewTrack(
+        id="devops",
+        name="DevOps / SRE",
+        description="Delivery pipelines, Kubernetes, incident response, SLOs, automation, and operational reliability.",
+        skills=("CI/CD", "Kubernetes", "SLOs", "Incidents", "Automation"),
+        technical_rubrics=(
+            technical_rubric(
+                name="DevOps Agent",
+                short="DO",
+                purpose="Delivery automation",
+                metric="DevOps engineering",
+                question="Design a deployment pipeline for many services with fast feedback and safe production releases.",
+                keywords=["pipeline", "test", "artifact", "canary", "rollback", "approval", "security"],
+                sample="I would build immutable artifacts once, run layered tests and security scans, promote the same artifact, use canary releases with automated SLO checks, and support fast rollback with audited approvals.",
+                variants=(
+                    "Design a deployment pipeline for many services with fast feedback and safe production releases.",
+                    "How would you standardize Kubernetes delivery without blocking teams that need customization?",
+                    "A release causes elevated errors. Walk through automated detection, mitigation, and learning.",
+                ),
+            ),
+            technical_rubric(
+                name="SRE Agent",
+                short="SR",
+                purpose="Reliability engineering",
+                metric="Site reliability",
+                question="Define SLOs and an error-budget policy for a customer-facing API.",
+                keywords=["sli", "slo", "error-budget", "latency", "availability", "alert", "tradeoff"],
+                sample="I would select user-centered availability and latency SLIs, define targets from business needs, alert on burn rate, and use the error budget to balance feature delivery with reliability work.",
+                variants=(
+                    "Define SLOs and an error-budget policy for a customer-facing API.",
+                    "How would you lead incident response for a cascading production failure?",
+                    "Design capacity planning and autoscaling for a service with sharp seasonal traffic spikes.",
+                ),
+            ),
+        ),
+    ),
+    "system-design": InterviewTrack(
+        id="system-design",
+        name="System Design",
+        description="Scalable architecture, distributed systems, data consistency, messaging, and failure handling.",
+        skills=("Architecture", "Scaling", "Consistency", "Messaging", "Resilience"),
+        technical_rubrics=(RUBRICS[1], RUBRICS[2]),
+    ),
+}
+
 SESSION_STORE: dict[str, InterviewSession] = {}
 SESSION_STORE_LOCK = RLock()
 
@@ -372,9 +614,14 @@ def health() -> dict[str, str]:
     }
 
 
+@app.get("/api/tracks", response_model=list[TrackView])
+def list_interview_tracks() -> list[TrackView]:
+    return [track_view(track) for track in TRACKS.values()]
+
+
 @app.post("/api/sessions", response_model=SessionView, status_code=201)
-def start_interview() -> SessionView:
-    session = create_interview_session()
+def start_interview(payload: SessionCreateRequest) -> SessionView:
+    session = create_interview_session(payload.trackId)
     return session_view(session)
 
 
@@ -405,7 +652,7 @@ def submit_interview_answer(session_id: str, payload: AnswerSubmission) -> Sessi
             if stage.answer:
                 raise HTTPException(status_code=409, detail="The primary answer was already submitted.")
             stage.answer = payload.answer
-            primary_result = evaluate_primary_answer(stage)
+            primary_result = evaluate_primary_answer(session, stage)
             stage.primary_result = primary_result
             stage.follow_up_question = primary_result.followUpQuestion
             session.phase = "follow_up"
@@ -415,7 +662,7 @@ def submit_interview_answer(session_id: str, payload: AnswerSubmission) -> Sessi
             if stage.follow_up_answer:
                 raise HTTPException(status_code=409, detail="The follow-up answer was already submitted.")
             stage.follow_up_answer = payload.answer
-            stage.result = evaluate_completed_stage(stage)
+            stage.result = evaluate_completed_stage(session, stage)
 
             if session.active_index + 1 < len(session.stages):
                 session.active_index += 1
@@ -431,8 +678,9 @@ def submit_interview_answer(session_id: str, payload: AnswerSubmission) -> Sessi
         return session_view(session)
 
 
-def create_interview_session() -> InterviewSession:
+def create_interview_session(track_id: TrackId) -> InterviewSession:
     now = time.monotonic()
+    track = TRACKS[track_id]
     with SESSION_STORE_LOCK:
         purge_expired_sessions(now)
         while len(SESSION_STORE) >= MAX_SESSIONS:
@@ -440,8 +688,9 @@ def create_interview_session() -> InterviewSession:
             del SESSION_STORE[oldest_id]
 
         session_id = secrets.token_urlsafe(24)
-        stages = [StageRecord(rubric=rubric, question=rubric.question_variants[0]) for rubric in RUBRICS]
-        session = InterviewSession(session_id=session_id, stages=stages, updated_at=now)
+        rubrics = (RESUME_RUBRIC, *track.technical_rubrics, HR_RUBRIC)
+        stages = [StageRecord(rubric=rubric, question=rubric.question_variants[0]) for rubric in rubrics]
+        session = InterviewSession(session_id=session_id, track=track, stages=stages, updated_at=now)
         SESSION_STORE[session_id] = session
         return session
 
@@ -465,6 +714,15 @@ def purge_expired_sessions(now: float | None = None) -> None:
 
 def session_context_size(session: InterviewSession) -> int:
     return sum(len(stage.answer) + len(stage.follow_up_answer) for stage in session.stages)
+
+
+def track_view(track: InterviewTrack) -> TrackView:
+    return TrackView(
+        id=track.id,
+        name=track.name,
+        description=track.description,
+        skills=list(track.skills),
+    )
 
 
 def session_view(session: InterviewSession) -> SessionView:
@@ -501,6 +759,7 @@ def session_view(session: InterviewSession) -> SessionView:
 
     return SessionView(
         sessionId=session.session_id,
+        track=track_view(session.track),
         version=session.version,
         phase=session.phase,
         activeIndex=session.active_index,
@@ -512,7 +771,7 @@ def session_view(session: InterviewSession) -> SessionView:
     )
 
 
-def evaluate_primary_answer(stage: StageRecord) -> PrimaryAgentResult:
+def evaluate_primary_answer(session: InterviewSession, stage: StageRecord) -> PrimaryAgentResult:
     agent = stage.rubric.agent.model_copy(update={"question": stage.question})
     fallback = local_primary_result(agent, stage.answer)
     if OPENAI_DISABLED or not OPENAI_API_KEY:
@@ -525,6 +784,7 @@ def evaluate_primary_answer(stage: StageRecord) -> PrimaryAgentResult:
     )
     user = json.dumps(
         {
+            "track": session.track.name,
             "agentName": agent.name,
             "agentPurpose": agent.purpose,
             "rubricMetric": agent.metric,
@@ -542,7 +802,7 @@ def evaluate_primary_answer(stage: StageRecord) -> PrimaryAgentResult:
     return PrimaryAgentResult.model_validate(result)
 
 
-def evaluate_completed_stage(stage: StageRecord) -> AgentResult:
+def evaluate_completed_stage(session: InterviewSession, stage: StageRecord) -> AgentResult:
     agent = stage.rubric.agent.model_copy(update={"question": stage.question})
     fallback = local_scored_result(agent, f"{stage.answer}\n{stage.follow_up_answer}", expected_words=140)
     if OPENAI_DISABLED or not OPENAI_API_KEY:
@@ -555,6 +815,7 @@ def evaluate_completed_stage(stage: StageRecord) -> AgentResult:
     )
     user = json.dumps(
         {
+            "track": session.track.name,
             "agentName": agent.name,
             "agentPurpose": agent.purpose,
             "rubricMetric": agent.metric,
@@ -590,6 +851,7 @@ def generate_next_question(session: InterviewSession, stage_index: int) -> str:
     )
     user = json.dumps(
         {
+            "track": session.track.name,
             "agent": {
                 "name": stage.rubric.agent.name,
                 "purpose": stage.rubric.agent.purpose,
@@ -628,6 +890,7 @@ def build_final_evaluation(session: InterviewSession) -> EvaluationResult:
         )
         user = json.dumps(
             {
+                "track": session.track.name,
                 "overallScore": overall_score,
                 "stages": [
                     {

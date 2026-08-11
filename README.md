@@ -5,7 +5,8 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 ## Features
 
 - Server-owned interview sessions, rubrics, stage scores, and final evaluations
-- Adaptive Resume, Coding, System Design, and HR stages
+- Candidate-selected Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, and System Design tracks
+- Shared Resume and HR stages plus two track-specific technical stages
 - One required follow-up before each stage is scored
 - Partial scores calculated only from completed stages
 - OpenAI-backed evaluation through the Responses API
@@ -108,13 +109,14 @@ Vercel setup reference: https://vercel.com/docs/vercel-firewall/vercel-waf/rate-
 
 ### Server-owned interview state
 
-The browser receives an opaque session ID, a server-issued version, and read-only stage views. It cannot submit rubrics, scores, prior results, or a final evaluation. Each answer must match the server's current version and phase, so stale or duplicate submissions are rejected, a primary answer always leads to a required follow-up, and only the follow-up submission can complete and score that stage.
+The browser may submit only a validated track ID when creating a session. The server selects the corresponding question banks and rubrics, then returns an opaque session ID, a server-issued version, public track metadata, and read-only stage views. The browser cannot submit rubrics, scores, prior results, or a final evaluation. Each answer must match the server's current version and phase, so stale or duplicate submissions are rejected, a primary answer always leads to a required follow-up, and only the follow-up submission can complete and score that stage.
 
 The built-in session store is bounded to 500 sessions with a one-hour inactivity expiry. It is an in-memory store intended for local development or a single long-lived server. Before running this flow across multiple Vercel function instances, replace the store with shared durable persistence such as PostgreSQL; process memory is not shared between serverless instances.
 
 ## API
 
 - `GET /api/health`
-- `POST /api/sessions`
+- `GET /api/tracks`
+- `POST /api/sessions` with `{ "trackId": "backend" }`
 - `GET /api/sessions/{session_id}`
 - `POST /api/sessions/{session_id}/answer`

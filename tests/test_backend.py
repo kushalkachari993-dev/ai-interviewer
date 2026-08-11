@@ -44,6 +44,9 @@ class BackendHardeningTests(unittest.TestCase):
             main.AnswerSubmission(answer=answer, phase=view.phase, version=view.version),
         )
 
+    def start(self, track_id="backend"):
+        return main.start_interview(main.SessionCreateRequest(trackId=track_id))
+
     def test_answer_size_and_extra_fields_are_rejected(self):
         with self.assertRaises(ValidationError):
             main.AnswerSubmission(
@@ -58,14 +61,36 @@ class BackendHardeningTests(unittest.TestCase):
 
     def test_session_contract_replaces_client_scoring_routes(self):
         paths = {route.path for route in main.app.routes}
+        self.assertIn("/api/tracks", paths)
         self.assertIn("/api/sessions", paths)
         self.assertIn("/api/sessions/{session_id}/answer", paths)
         self.assertNotIn("/api/question", paths)
         self.assertNotIn("/api/agent", paths)
         self.assertNotIn("/api/evaluation", paths)
 
+    def test_tracks_are_server_owned_and_session_selection_is_validated(self):
+        tracks = main.list_interview_tracks()
+        self.assertEqual(
+            {track.id for track in tracks},
+            {"backend", "frontend", "cloud", "terraform", "devops", "system-design"},
+        )
+        self.assertNotIn("keywords", json.dumps([track.model_dump() for track in tracks]))
+        with self.assertRaises(ValidationError):
+            main.SessionCreateRequest(trackId="unknown")
+
+        technical_stage_names = set()
+        for track in tracks:
+            session = self.start(track.id)
+            self.assertEqual(session.track.id, track.id)
+            self.assertEqual(session.track.name, track.name)
+            self.assertEqual(session.stages[0].name, "Resume Agent")
+            self.assertEqual(session.stages[-1].name, "HR Agent")
+            self.assertEqual(len(session.stages), 4)
+            technical_stage_names.add(tuple(stage.name for stage in session.stages[1:3]))
+        self.assertEqual(len(technical_stage_names), len(tracks))
+
     def test_session_view_hides_rubric_keywords_and_provisional_score(self):
-        session = main.start_interview()
+        session = self.start()
         initial_payload = session.model_dump()
         self.assertNotIn("keywords", json.dumps(initial_payload))
 
@@ -77,7 +102,7 @@ class BackendHardeningTests(unittest.TestCase):
         self.assertTrue(after_primary.stages[0].followUpQuestion)
 
     def test_follow_up_is_required_before_stage_score_and_advance(self):
-        session = main.start_interview()
+        session = self.start()
         after_primary = self.submit(session, session.stages[0].sample)
         self.assertEqual(after_primary.activeIndex, 0)
         self.assertEqual(after_primary.phase, "follow_up")
@@ -93,7 +118,7 @@ class BackendHardeningTests(unittest.TestCase):
         self.assertEqual(after_follow_up.partialScore, first_score)
 
     def test_full_interview_produces_server_computed_scorecard(self):
-        view = main.start_interview()
+        view = self.start()
         while view.phase != "complete":
             stage = view.stages[view.activeIndex]
             answer = (
@@ -118,7 +143,7 @@ class BackendHardeningTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 409)
 
     def test_stale_submission_cannot_be_replayed_as_follow_up(self):
-        session = main.start_interview()
+        session = self.start()
         stale_payload = main.AnswerSubmission(
             answer=session.stages[0].sample,
             phase=session.phase,
@@ -134,7 +159,7 @@ class BackendHardeningTests(unittest.TestCase):
         self.assertEqual(current.completedStages, 0)
 
     def test_final_narrative_cannot_override_server_scores(self):
-        session = main.create_interview_session()
+        session = main.create_interview_session("backend")
         for index, stage in enumerate(session.stages):
             stage.answer = "Primary evidence"
             stage.follow_up_question = "What tradeoff?"

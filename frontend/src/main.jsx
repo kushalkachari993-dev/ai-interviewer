@@ -9,6 +9,8 @@ const SESSION_STORAGE_KEY = "aiInterviewerSessionId";
 
 function App() {
   const [session, setSession] = useState(null);
+  const [tracks, setTracks] = useState([]);
+  const [selectedTrackId, setSelectedTrackId] = useState("");
   const [draft, setDraft] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,6 +33,11 @@ function App() {
 
     async function initializeSession() {
       try {
+        const availableTracks = await getJson("/api/tracks");
+        if (!cancelled) {
+          setTracks(availableTracks);
+          setSelectedTrackId(availableTracks[0]?.id || "");
+        }
         const savedId = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
         let nextSession = null;
         if (savedId) {
@@ -40,8 +47,7 @@ function App() {
             window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
           }
         }
-        if (!nextSession) nextSession = await postJson("/api/sessions");
-        if (!cancelled) applySession(nextSession);
+        if (!cancelled && nextSession) applySession(nextSession);
       } catch (error) {
         if (!cancelled) setErrorMessage(error.message);
       } finally {
@@ -83,11 +89,12 @@ function App() {
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, nextSession.sessionId);
   }
 
-  async function startNewInterview() {
+  async function startNewInterview(trackId = selectedTrackId || session?.track?.id) {
+    if (!trackId) return;
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const nextSession = await postJson("/api/sessions");
+      const nextSession = await postJson("/api/sessions", { trackId });
       applySession(nextSession);
       setDraft("");
     } catch (error) {
@@ -95,6 +102,14 @@ function App() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function chooseAnotherTrack() {
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    setSelectedTrackId(session?.track?.id || tracks[0]?.id || "");
+    setSession(null);
+    setDraft("");
+    setErrorMessage("");
   }
 
   async function submitAnswer(event) {
@@ -162,9 +177,22 @@ function App() {
   if (isLoading && !session) {
     return (
       <main className="loading-state">
-        <h1>Preparing your interview…</h1>
-        <p>The server is creating a secure interview session.</p>
+        <h1>Loading interview tracks…</h1>
+        <p>The server is preparing the available technical tracks.</p>
       </main>
+    );
+  }
+
+  if (!session && tracks.length) {
+    return (
+      <TrackSelector
+        errorMessage={errorMessage}
+        isLoading={isLoading}
+        onSelect={setSelectedTrackId}
+        onStart={startNewInterview}
+        selectedTrackId={selectedTrackId}
+        tracks={tracks}
+      />
     );
   }
 
@@ -173,7 +201,7 @@ function App() {
       <main className="loading-state">
         <h1>Interview unavailable</h1>
         <p>{errorMessage || "The interview session could not be created."}</p>
-        <button className="primary-button" onClick={startNewInterview} type="button">
+        <button className="primary-button" onClick={() => window.location.reload()} type="button">
           Try again
         </button>
       </main>
@@ -189,6 +217,11 @@ function App() {
             <h1>AI Interviewer Platform</h1>
             <p>Server-scored adaptive interview workflow.</p>
           </div>
+        </div>
+
+        <div className="track-badge">
+          <span>Selected track</span>
+          <strong>{session.track.name}</strong>
         </div>
 
         <section className="panel">
@@ -265,10 +298,15 @@ function App() {
         {isComplete ? (
           <section className="answer-box completion-box">
             <h3>Interview complete</h3>
-            <p>All four stages and their follow-ups were scored by the server.</p>
-            <button className="primary-button" onClick={startNewInterview} type="button">
-              Start new interview
-            </button>
+            <p>All four {session.track.name} stages and their follow-ups were scored by the server.</p>
+            <div className="completion-actions">
+              <button className="primary-button" onClick={() => startNewInterview(session.track.id)} type="button">
+                Repeat this track
+              </button>
+              <button className="secondary-button" onClick={chooseAnotherTrack} type="button">
+                Choose another track
+              </button>
+            </div>
           </section>
         ) : (
           <form className="answer-box" onSubmit={submitAnswer}>
@@ -335,6 +373,71 @@ function App() {
           </article>
         </section>
       </aside>
+    </main>
+  );
+}
+
+function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTrackId, tracks }) {
+  const selectedTrack = tracks.find((track) => track.id === selectedTrackId) || tracks[0];
+
+  return (
+    <main className="track-page">
+      <section className="track-hero">
+        <div className="brand track-brand">
+          <span className="brand-mark">AI</span>
+          <div>
+            <h1>AI Interviewer Platform</h1>
+            <p>Choose the technical interview you want to practice.</p>
+          </div>
+        </div>
+        <p className="eyebrow">Server-owned interview tracks</p>
+        <h2>Select your interview track</h2>
+        <p className="track-intro">
+          Every interview includes Resume and HR stages plus two technical stages tailored to your selection.
+          Each stage includes a required follow-up and a validated score.
+        </p>
+      </section>
+
+      <section className="track-grid" aria-label="Available interview tracks">
+        {tracks.map((track) => (
+          <button
+            aria-pressed={track.id === selectedTrack?.id}
+            className={`track-card ${track.id === selectedTrack?.id ? "selected" : ""}`}
+            key={track.id}
+            onClick={() => onSelect(track.id)}
+            type="button"
+          >
+            <span className="track-card-topline">
+              <span className="track-monogram">
+                {track.name.split(/[\s/]+/).filter(Boolean).map((word) => word[0]).join("").slice(0, 2)}
+              </span>
+              <span className="track-check">{track.id === selectedTrack?.id ? "Selected" : "Choose"}</span>
+            </span>
+            <strong>{track.name}</strong>
+            <span className="track-description">{track.description}</span>
+            <span className="skill-list">
+              {track.skills.map((skill) => <span key={skill}>{skill}</span>)}
+            </span>
+          </button>
+        ))}
+      </section>
+
+      <section className="track-start-panel">
+        <div>
+          <span className="eyebrow">Ready to begin</span>
+          <h3>{selectedTrack?.name}</h3>
+          <p>4 stages · 4 required follow-ups · about 20–30 minutes</p>
+          {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
+        </div>
+        <button
+          className="primary-button track-start-button"
+          disabled={isLoading || !selectedTrack}
+          onClick={() => onStart(selectedTrack.id)}
+          type="button"
+        >
+          {isLoading ? "Starting…" : `Start ${selectedTrack?.name || "interview"}`}
+        </button>
+      </section>
     </main>
   );
 }
