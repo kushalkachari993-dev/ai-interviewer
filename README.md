@@ -5,7 +5,8 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 ## Features
 
 - Server-owned interview sessions, rubrics, stage scores, and final evaluations
-- 18 candidate-selected tracks spanning software, cloud, data/AI, security, quality, architecture, and management
+- 26 candidate-selected tracks spanning software, cloud, data/AI, security, systems, quality, product, architecture, and management
+- Five candidate-selected experience levels with level-calibrated questions and scoring expectations
 - Shared Resume and HR stages plus two track-specific technical stages
 - One required follow-up before each stage is scored
 - Partial scores calculated only from completed stages
@@ -14,7 +15,9 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 - Browser voice input and question playback
 - React/Vite frontend and FastAPI backend
 
-Available tracks: Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, System Design, AI/ML, Data Engineering, Cybersecurity/AppSec, Kubernetes/Platform Engineering, Mobile, QA Automation/SDET, Full-Stack, Database Engineering, MLOps, DevSecOps/Security Operations, Solutions Architecture, and Engineering Management.
+Available tracks: Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, System Design, AI/ML, Data Engineering, Cybersecurity/AppSec, Kubernetes/Platform Engineering, Mobile, QA Automation/SDET, Full-Stack, Database Engineering, MLOps, DevSecOps/Security Operations, Solutions Architecture, Engineering Management, Data Science, Analytics Engineering/BI, Embedded Systems/Firmware, Linux/Systems Engineering, Network Engineering, Observability Engineering, FinOps/Cloud Cost Engineering, and Technical Product Management.
+
+Available levels: Junior, Mid-level, Senior, Staff, and Manager. The server owns each level's evaluation expectations and uses them to calibrate adaptive questions, follow-ups, and scoring depth.
 
 ## Setup
 
@@ -111,7 +114,7 @@ Vercel setup reference: https://vercel.com/docs/vercel-firewall/vercel-waf/rate-
 
 ### Server-owned interview state
 
-The browser may submit only a validated track ID when creating a session. The server selects the corresponding question banks and rubrics, then returns an opaque session ID, a server-issued version, public track metadata, and read-only stage views. The browser cannot submit rubrics, scores, prior results, or a final evaluation. Each answer must match the server's current version and phase, so stale or duplicate submissions are rejected, a primary answer always leads to a required follow-up, and only the follow-up submission can complete and score that stage.
+The browser may submit only validated track and experience-level IDs when creating a session. The server selects the corresponding question banks, rubrics, and level expectations, then returns an opaque session ID, a server-issued version, public selection metadata, and read-only stage views. The browser cannot submit rubrics, scoring expectations, scores, prior results, or a final evaluation. Each answer must match the server's current version and phase, so stale or duplicate submissions are rejected, a primary answer always leads to a required follow-up, and only the follow-up submission can complete and score that stage.
 
 The built-in session store is bounded to 500 sessions with a one-hour inactivity expiry. It is an in-memory store intended for local development or a single long-lived server. Before running this flow across multiple Vercel function instances, replace the store with shared durable persistence such as PostgreSQL; process memory is not shared between serverless instances.
 
@@ -119,6 +122,7 @@ The built-in session store is bounded to 500 sessions with a one-hour inactivity
 
 - `GET /api/health`
 - `GET /api/tracks`
-- `POST /api/sessions` with `{ "trackId": "backend" }`
+- `GET /api/levels`
+- `POST /api/sessions` with `{ "trackId": "backend", "levelId": "senior" }`
 - `GET /api/sessions/{session_id}`
 - `POST /api/sessions/{session_id}/answer`

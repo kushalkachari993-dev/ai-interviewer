@@ -10,7 +10,9 @@ const SESSION_STORAGE_KEY = "aiInterviewerSessionId";
 function App() {
   const [session, setSession] = useState(null);
   const [tracks, setTracks] = useState([]);
+  const [levels, setLevels] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState("");
+  const [selectedLevelId, setSelectedLevelId] = useState("mid");
   const [draft, setDraft] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,10 +35,15 @@ function App() {
 
     async function initializeSession() {
       try {
-        const availableTracks = await getJson("/api/tracks");
+        const [availableTracks, availableLevels] = await Promise.all([
+          getJson("/api/tracks"),
+          getJson("/api/levels"),
+        ]);
         if (!cancelled) {
           setTracks(availableTracks);
+          setLevels(availableLevels);
           setSelectedTrackId(availableTracks[0]?.id || "");
+          setSelectedLevelId(availableLevels.find((level) => level.id === "mid")?.id || availableLevels[0]?.id || "");
         }
         const savedId = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
         let nextSession = null;
@@ -86,15 +93,20 @@ function App() {
 
   function applySession(nextSession) {
     setSession(nextSession);
+    setSelectedTrackId(nextSession.track.id);
+    setSelectedLevelId(nextSession.level.id);
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, nextSession.sessionId);
   }
 
-  async function startNewInterview(trackId = selectedTrackId || session?.track?.id) {
-    if (!trackId) return;
+  async function startNewInterview(
+    trackId = selectedTrackId || session?.track?.id,
+    levelId = selectedLevelId || session?.level?.id,
+  ) {
+    if (!trackId || !levelId) return;
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const nextSession = await postJson("/api/sessions", { trackId });
+      const nextSession = await postJson("/api/sessions", { trackId, levelId });
       applySession(nextSession);
       setDraft("");
     } catch (error) {
@@ -107,6 +119,7 @@ function App() {
   function chooseAnotherTrack() {
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setSelectedTrackId(session?.track?.id || tracks[0]?.id || "");
+    setSelectedLevelId(session?.level?.id || levels.find((level) => level.id === "mid")?.id || levels[0]?.id || "");
     setSession(null);
     setDraft("");
     setErrorMessage("");
@@ -177,19 +190,22 @@ function App() {
   if (isLoading && !session) {
     return (
       <main className="loading-state">
-        <h1>Loading interview tracks…</h1>
-        <p>The server is preparing the available technical tracks.</p>
+        <h1>Loading interview options…</h1>
+        <p>The server is preparing the available tracks and experience levels.</p>
       </main>
     );
   }
 
-  if (!session && tracks.length) {
+  if (!session && tracks.length && levels.length) {
     return (
       <TrackSelector
         errorMessage={errorMessage}
         isLoading={isLoading}
+        levels={levels}
+        onLevelSelect={setSelectedLevelId}
         onSelect={setSelectedTrackId}
         onStart={startNewInterview}
+        selectedLevelId={selectedLevelId}
         selectedTrackId={selectedTrackId}
         tracks={tracks}
       />
@@ -220,8 +236,9 @@ function App() {
         </div>
 
         <div className="track-badge">
-          <span>Selected track</span>
+          <span>Selected interview</span>
           <strong>{session.track.name}</strong>
+          <small>{session.level.name} interview</small>
         </div>
 
         <section className="panel">
@@ -300,7 +317,7 @@ function App() {
             <h3>Interview complete</h3>
             <p>All four {session.track.name} stages and their follow-ups were scored by the server.</p>
             <div className="completion-actions">
-              <button className="primary-button" onClick={() => startNewInterview(session.track.id)} type="button">
+              <button className="primary-button" onClick={() => startNewInterview(session.track.id, session.level.id)} type="button">
                 Repeat this track
               </button>
               <button className="secondary-button" onClick={chooseAnotherTrack} type="button">
@@ -377,9 +394,20 @@ function App() {
   );
 }
 
-function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTrackId, tracks }) {
+function TrackSelector({
+  errorMessage,
+  isLoading,
+  levels,
+  onLevelSelect,
+  onSelect,
+  onStart,
+  selectedLevelId,
+  selectedTrackId,
+  tracks,
+}) {
   const [query, setQuery] = useState("");
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) || tracks[0];
+  const selectedLevel = levels.find((level) => level.id === selectedLevelId) || levels[0];
   const normalizedQuery = query.trim().toLowerCase();
   const visibleTracks = tracks.filter((track) => {
     if (!normalizedQuery) return true;
@@ -399,22 +427,46 @@ function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTra
             <p>Choose the technical interview you want to practice.</p>
           </div>
         </div>
-        <p className="eyebrow">Server-owned interview tracks</p>
-        <h2>Select your interview track</h2>
+        <p className="eyebrow">Server-owned tracks and expectations</p>
+        <h2>Choose your interview</h2>
         <p className="track-intro">
           Every interview includes Resume and HR stages plus two technical stages tailored to your selection.
           Each stage includes a required follow-up and a validated score.
         </p>
       </section>
 
+      <section className="level-selector" aria-labelledby="level-selector-title">
+        <div className="level-selector-heading">
+          <div>
+            <p className="eyebrow">Step 1</p>
+            <h3 id="level-selector-title">Select your experience level</h3>
+          </div>
+          <span>Questions and scoring depth adapt to this choice.</span>
+        </div>
+        <div className="level-grid">
+          {levels.map((level) => (
+            <button
+              aria-pressed={level.id === selectedLevel?.id}
+              className={`level-card ${level.id === selectedLevel?.id ? "selected" : ""}`}
+              key={level.id}
+              onClick={() => onLevelSelect(level.id)}
+              type="button"
+            >
+              <strong>{level.name}</strong>
+              <span>{level.description}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="track-search" aria-label="Filter interview tracks">
-        <label htmlFor="track-search-input">Search tracks</label>
+        <label htmlFor="track-search-input"><span className="eyebrow">Step 2</span> Search and select a track</label>
         <div className="track-search-row">
           <input
             autoComplete="off"
             id="track-search-input"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Try AI, security, mobile, databases..."
+            placeholder="Try data science, networks, cloud, product..."
             type="search"
             value={query}
           />
@@ -453,13 +505,13 @@ function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTra
         <div>
           <span className="eyebrow">Ready to begin</span>
           <h3>{selectedTrack?.name}</h3>
-          <p>4 stages · 4 required follow-ups · about 20–30 minutes</p>
+          <p>{selectedLevel?.name} interview · 4 stages · 4 required follow-ups · about 20–30 minutes</p>
           {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
         </div>
         <button
           className="primary-button track-start-button"
-          disabled={isLoading || !selectedTrack}
-          onClick={() => onStart(selectedTrack.id)}
+          disabled={isLoading || !selectedTrack || !selectedLevel}
+          onClick={() => onStart(selectedTrack.id, selectedLevel.id)}
           type="button"
         >
           {isLoading ? "Starting…" : `Start ${selectedTrack?.name || "interview"}`}

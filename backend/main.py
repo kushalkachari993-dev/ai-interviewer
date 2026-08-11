@@ -58,7 +58,16 @@ TrackId = Literal[
     "devsecops",
     "solutions-architecture",
     "engineering-management",
+    "data-science",
+    "analytics-engineering",
+    "embedded-systems",
+    "systems-engineering",
+    "network-engineering",
+    "observability",
+    "finops",
+    "technical-product-management",
 ]
+ExperienceLevelId = Literal["junior", "mid", "senior", "staff", "manager"]
 
 
 def load_env() -> dict[str, str]:
@@ -183,6 +192,7 @@ class AnswerSubmission(StrictModel):
 
 class SessionCreateRequest(StrictModel):
     trackId: TrackId
+    levelId: ExperienceLevelId = "mid"
 
 
 class TrackView(StrictModel):
@@ -190,6 +200,12 @@ class TrackView(StrictModel):
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(min_length=1, max_length=240)
     skills: list[str] = Field(min_length=1, max_length=8)
+
+
+class LevelView(StrictModel):
+    id: ExperienceLevelId
+    name: str = Field(min_length=1, max_length=40)
+    description: str = Field(min_length=1, max_length=240)
 
 
 class StageView(StrictModel):
@@ -210,6 +226,7 @@ class StageView(StrictModel):
 class SessionView(StrictModel):
     sessionId: str
     track: TrackView
+    level: LevelView
     version: int = Field(ge=0)
     phase: Literal["primary", "follow_up", "complete"]
     activeIndex: int = Field(ge=0, lt=MAX_AGENTS)
@@ -236,6 +253,15 @@ class InterviewTrack:
     technical_rubrics: tuple[InterviewRubric, InterviewRubric]
 
 
+@dataclass(frozen=True)
+class ExperienceLevel:
+    id: ExperienceLevelId
+    name: str
+    description: str
+    evaluation_expectation: str
+    expected_words: int
+
+
 @dataclass
 class StageRecord:
     rubric: InterviewRubric
@@ -251,6 +277,7 @@ class StageRecord:
 class InterviewSession:
     session_id: str
     track: InterviewTrack
+    level: ExperienceLevel
     stages: list[StageRecord]
     version: int = 0
     active_index: int = 0
@@ -370,6 +397,45 @@ def technical_rubric(
         sample=sample,
         question_variants=variants,
     )
+
+
+EXPERIENCE_LEVELS: dict[ExperienceLevelId, ExperienceLevel] = {
+    "junior": ExperienceLevel(
+        id="junior",
+        name="Junior",
+        description="Fundamentals, scoped implementation, debugging habits, and ability to learn with guidance.",
+        evaluation_expectation="Expect sound fundamentals, clear reasoning on scoped tasks, and openness to guidance; do not require organization-level ownership.",
+        expected_words=105,
+    ),
+    "mid": ExperienceLevel(
+        id="mid",
+        name="Mid-level",
+        description="Independent feature delivery, practical tradeoffs, testing, and dependable team contribution.",
+        evaluation_expectation="Expect independent delivery, practical technical tradeoffs, testing discipline, and reliable ownership within a team.",
+        expected_words=120,
+    ),
+    "senior": ExperienceLevel(
+        id="senior",
+        name="Senior",
+        description="System ownership, architecture tradeoffs, reliability, mentoring, and cross-team collaboration.",
+        evaluation_expectation="Expect system-level tradeoffs, operational ownership, measurable impact, mentoring, and influence across team boundaries.",
+        expected_words=140,
+    ),
+    "staff": ExperienceLevel(
+        id="staff",
+        name="Staff",
+        description="Ambiguous organization-wide problems, technical strategy, influence, and long-term leverage.",
+        evaluation_expectation="Expect organization-wide technical strategy, ambiguity management, durable leverage, cross-team influence, and explicit business tradeoffs.",
+        expected_words=155,
+    ),
+    "manager": ExperienceLevel(
+        id="manager",
+        name="Manager",
+        description="People leadership, team execution, stakeholder alignment, technical judgment, and organizational health.",
+        evaluation_expectation="Expect people and delivery leadership, sound technical judgment, stakeholder alignment, team health ownership, and scalable execution systems.",
+        expected_words=145,
+    ),
+}
 
 
 TRACKS: dict[TrackId, InterviewTrack] = {
@@ -913,6 +979,246 @@ TRACKS: dict[TrackId, InterviewTrack] = {
             ),
         ),
     ),
+    "data-science": InterviewTrack(
+        id="data-science",
+        name="Data Science",
+        description="Statistics, experimentation, predictive modeling, feature engineering, interpretation, and business impact.",
+        skills=("Statistics", "Experiments", "Modeling", "Features", "Interpretation"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Data Science Agent", short="DS", purpose="Applied modeling", metric="Data science",
+                question="Design a model to predict customer churn and explain how you would prove it creates business value.",
+                keywords=["target", "feature", "leakage", "baseline", "validation", "metric", "impact"],
+                sample="I would define an actionable churn window, prevent temporal leakage, compare with a simple baseline, use time-aware validation, evaluate calibrated precision and recall by segment, and run an intervention experiment to measure incremental retention.",
+                variants=(
+                    "Design a model to predict customer churn and explain how you would prove it creates business value.",
+                    "How would you build and validate a demand forecast when history contains promotions and stockouts?",
+                    "A model's aggregate metric is strong but users complain. How would you investigate its failures?",
+                ),
+            ),
+            technical_rubric(
+                name="Experimentation Agent", short="EX", purpose="Causal experiments", metric="Experimentation",
+                question="Design an experiment for a product change when users can influence one another.",
+                keywords=["hypothesis", "randomization", "interference", "power", "metric", "guardrail", "causal"],
+                sample="I would state the causal hypothesis, choose a cluster or network-aware randomization unit, estimate power, predefine primary and guardrail metrics, validate assignment, monitor spillovers, and report uncertainty with practical significance.",
+                variants=(
+                    "Design an experiment for a product change when users can influence one another.",
+                    "An A/B test is statistically significant but commercially tiny. How would you decide what to do?",
+                    "How would you estimate causal impact when a randomized experiment is not possible?",
+                ),
+            ),
+        ),
+    ),
+    "analytics-engineering": InterviewTrack(
+        id="analytics-engineering",
+        name="Analytics Engineering / BI",
+        description="Transformation workflows, semantic models, trustworthy metrics, dashboards, lineage, and analytics governance.",
+        skills=("dbt", "SQL", "Metrics", "Dashboards", "Lineage"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Analytics Engineering Agent", short="AE", purpose="Trusted analytics models", metric="Analytics engineering",
+                question="Design a dbt-style transformation project that provides trustworthy shared revenue metrics.",
+                keywords=["source", "staging", "model", "test", "lineage", "incremental", "documentation"],
+                sample="I would define source contracts, isolate staging models, build reusable intermediate and mart layers, declare metric grain, add freshness and integrity tests, document lineage and ownership, and validate incremental models against full rebuilds.",
+                variants=(
+                    "Design a dbt-style transformation project that provides trustworthy shared revenue metrics.",
+                    "How would you safely change a widely used analytics model without breaking consumers?",
+                    "A warehouse transformation has become slow and expensive. How would you optimize it?",
+                ),
+            ),
+            technical_rubric(
+                name="Business Intelligence Agent", short="BI", purpose="Decision-ready insights", metric="Business intelligence",
+                question="Design an executive dashboard that avoids misleading metrics and supports investigation.",
+                keywords=["audience", "definition", "semantic", "dimension", "drill-down", "freshness", "action"],
+                sample="I would start from decisions and owners, define governed metrics in a semantic layer, show targets and trends with useful dimensions, expose freshness and caveats, provide drill-down paths, and test comprehension with the audience.",
+                variants=(
+                    "Design an executive dashboard that avoids misleading metrics and supports investigation.",
+                    "Two departments report different values for the same KPI. How would you resolve the conflict?",
+                    "How would you measure and improve adoption of a self-service analytics platform?",
+                ),
+            ),
+        ),
+    ),
+    "embedded-systems": InterviewTrack(
+        id="embedded-systems",
+        name="Embedded Systems / Firmware",
+        description="C/C++, microcontrollers, RTOS design, hardware interfaces, timing, memory, safety, and debugging.",
+        skills=("C / C++", "RTOS", "Hardware", "Timing", "Debugging"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Embedded Systems Agent", short="EMB", purpose="Resource-constrained systems", metric="Embedded engineering",
+                question="Design firmware that samples a sensor reliably while meeting strict timing and memory constraints.",
+                keywords=["interrupt", "buffer", "deadline", "memory", "dma", "concurrency", "watchdog"],
+                sample="I would quantify sampling deadlines, keep interrupts bounded, use DMA and a fixed ring buffer, separate acquisition from processing, avoid dynamic allocation, protect shared state, monitor overruns, and use a watchdog with safe recovery.",
+                variants=(
+                    "Design firmware that samples a sensor reliably while meeting strict timing and memory constraints.",
+                    "How would you structure tasks and synchronization in an RTOS-based device?",
+                    "A device intermittently resets in the field. Walk through your debugging approach.",
+                ),
+            ),
+            technical_rubric(
+                name="Firmware Reliability Agent", short="FW", purpose="Safe device delivery", metric="Firmware reliability",
+                question="Design a secure over-the-air firmware update with rollback and power-loss recovery.",
+                keywords=["signature", "bootloader", "partition", "atomic", "rollback", "power-loss", "version"],
+                sample="I would verify signed images in a minimal bootloader, write to an inactive partition, make activation atomic, preserve a known-good image, validate boot health before committing, prevent downgrade attacks, and test power loss at every step.",
+                variants=(
+                    "Design a secure over-the-air firmware update with rollback and power-loss recovery.",
+                    "How would you test firmware that depends on unreliable physical hardware?",
+                    "Design fault handling for a safety-sensitive controller when sensors disagree.",
+                ),
+            ),
+        ),
+    ),
+    "systems-engineering": InterviewTrack(
+        id="systems-engineering",
+        name="Linux / Systems Engineering",
+        description="Operating systems, concurrency, memory, filesystems, networking, profiling, and low-level reliability.",
+        skills=("Linux", "Concurrency", "Memory", "Performance", "Debugging"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Systems Engineering Agent", short="SYS", purpose="Low-level system design", metric="Systems engineering",
+                question="Design a high-throughput concurrent service while controlling memory and tail latency.",
+                keywords=["thread", "async", "queue", "backpressure", "memory", "lock", "latency"],
+                sample="I would model workload and contention, use bounded queues and backpressure, choose threads or async I/O from blocking behavior, minimize shared mutable state, pool carefully, measure tail latency, and shed overload predictably.",
+                variants=(
+                    "Design a high-throughput concurrent service while controlling memory and tail latency.",
+                    "Explain how you would build a safe producer-consumer system with bounded resources.",
+                    "Design a daemon that survives dependency failures and supports graceful shutdown.",
+                ),
+            ),
+            technical_rubric(
+                name="Linux Performance Agent", short="LP", purpose="Production systems diagnosis", metric="Systems performance",
+                question="A Linux service has high tail latency but average CPU is low. How would you diagnose it?",
+                keywords=["profiling", "iowait", "scheduler", "lock", "page-fault", "trace", "percentile"],
+                sample="I would confirm percentile scope, correlate saturation and queueing, inspect I/O wait, scheduler delays, locks and page faults, trace representative slow requests, profile without excessive overhead, and validate each hypothesis with controlled changes.",
+                variants=(
+                    "A Linux service has high tail latency but average CPU is low. How would you diagnose it?",
+                    "A process is steadily consuming memory. How would you distinguish a leak from expected caching?",
+                    "How would you investigate intermittent disk latency on a busy production host?",
+                ),
+            ),
+        ),
+    ),
+    "network-engineering": InterviewTrack(
+        id="network-engineering",
+        name="Network Engineering",
+        description="Routing, switching, DNS, load balancing, VPNs, firewalls, automation, and network troubleshooting.",
+        skills=("Routing", "DNS", "Load Balancing", "Firewalls", "Troubleshooting"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Network Architecture Agent", short="NA", purpose="Network design", metric="Network engineering",
+                question="Design resilient connectivity between offices, cloud networks, and production services.",
+                keywords=["routing", "bgp", "redundancy", "segmentation", "vpn", "failover", "capacity"],
+                sample="I would define traffic and trust boundaries, use redundant links and dynamic routing, segment environments, encrypt transit, control route propagation, test convergence and failover, and monitor capacity, loss, latency, and route health.",
+                variants=(
+                    "Design resilient connectivity between offices, cloud networks, and production services.",
+                    "How would you design global traffic routing for a multi-region application?",
+                    "Design network segmentation that limits breach impact without blocking operations.",
+                ),
+            ),
+            technical_rubric(
+                name="Network Troubleshooting Agent", short="NT", purpose="Network diagnosis", metric="Network troubleshooting",
+                question="Users report intermittent timeouts through a load balancer. Walk through your investigation.",
+                keywords=["scope", "dns", "packet", "connection", "timeout", "load-balancer", "telemetry"],
+                sample="I would scope affected paths and times, check DNS and load-balancer health, compare client and backend connection metrics, inspect packet loss and retransmits, trace a failing flow, verify timeout alignment, and change one hypothesis at a time.",
+                variants=(
+                    "Users report intermittent timeouts through a load balancer. Walk through your investigation.",
+                    "A site can reach IP addresses but not domain names. How would you diagnose the failure?",
+                    "How would you investigate packet loss that appears only during peak traffic?",
+                ),
+            ),
+        ),
+    ),
+    "observability": InterviewTrack(
+        id="observability",
+        name="Observability Engineering",
+        description="Metrics, logs, traces, OpenTelemetry, alerting, telemetry pipelines, and production diagnosis.",
+        skills=("Metrics", "Logs", "Tracing", "OpenTelemetry", "Alerting"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Observability Design Agent", short="OD", purpose="Telemetry architecture", metric="Observability engineering",
+                question="Design observability for a distributed request spanning APIs, queues, and background workers.",
+                keywords=["trace", "context", "metric", "log", "correlation", "sampling", "cardinality"],
+                sample="I would propagate trace context through HTTP and messages, define service and business metrics, emit structured correlated logs, control labels and sampling, retain error traces, publish ownership dashboards, and test telemetry during failures.",
+                variants=(
+                    "Design observability for a distributed request spanning APIs, queues, and background workers.",
+                    "How would you introduce OpenTelemetry across services owned by many teams?",
+                    "Design a telemetry pipeline that remains useful during a major traffic spike.",
+                ),
+            ),
+            technical_rubric(
+                name="Alerting Strategy Agent", short="AL", purpose="Actionable detection", metric="Alerting strategy",
+                question="Redesign a noisy alerting system so it detects user impact without exhausting responders.",
+                keywords=["slo", "burn-rate", "symptom", "severity", "runbook", "deduplicate", "ownership"],
+                sample="I would inventory pages and outcomes, page on user-facing symptoms and SLO burn, deduplicate correlated events, assign severity and owners, attach tested runbooks, move diagnostics to dashboards, and measure false-positive and response rates.",
+                variants=(
+                    "Redesign a noisy alerting system so it detects user impact without exhausting responders.",
+                    "A dashboard looks healthy during a customer-visible outage. What would you change?",
+                    "How would you choose telemetry retention and sampling under a fixed budget?",
+                ),
+            ),
+        ),
+    ),
+    "finops": InterviewTrack(
+        id="finops",
+        name="FinOps / Cloud Cost Engineering",
+        description="Cloud cost allocation, forecasting, optimization, unit economics, governance, and financial accountability.",
+        skills=("Cost Allocation", "Forecasting", "Optimization", "Unit Cost", "Governance"),
+        technical_rubrics=(
+            technical_rubric(
+                name="FinOps Engineering Agent", short="FO", purpose="Cloud cost systems", metric="FinOps engineering",
+                question="Design a cloud cost-allocation model that teams trust and can act on.",
+                keywords=["tag", "account", "shared-cost", "allocation", "unit-cost", "owner", "quality"],
+                sample="I would combine account boundaries and enforced tags, assign ownership, define transparent shared-cost rules, expose product unit costs, track allocation coverage and data quality, reconcile to billing, and let teams drill into actionable drivers.",
+                variants=(
+                    "Design a cloud cost-allocation model that teams trust and can act on.",
+                    "How would you calculate unit economics for a multi-tenant SaaS platform?",
+                    "Design cost anomaly detection that avoids overwhelming teams with noise.",
+                ),
+            ),
+            technical_rubric(
+                name="Cloud Optimization Agent", short="CO", purpose="Sustainable cost optimization", metric="Cloud cost optimization",
+                question="Cloud spend rose 40 percent. Explain how you would reduce it without creating reliability risk.",
+                keywords=["baseline", "utilization", "rightsizing", "commitment", "storage", "slo", "measure"],
+                sample="I would normalize spend against growth, identify top services and unit-cost changes, remove waste, rightsize from utilization and SLOs, tune storage and data transfer, use commitments only for stable demand, and verify savings against reliability guardrails.",
+                variants=(
+                    "Cloud spend rose 40 percent. Explain how you would reduce it without creating reliability risk.",
+                    "How would you forecast cloud spend for a product with uncertain growth?",
+                    "Design governance that controls cost while preserving engineering autonomy.",
+                ),
+            ),
+        ),
+    ),
+    "technical-product-management": InterviewTrack(
+        id="technical-product-management",
+        name="Technical Product Management",
+        description="Product discovery, prioritization, technical tradeoffs, metrics, platform strategy, and execution.",
+        skills=("Discovery", "Prioritization", "Metrics", "Platforms", "Execution"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Technical Product Agent", short="TP", purpose="Technical product discovery", metric="Technical product management",
+                question="A customer asks for a major platform capability. Explain how you would discover the real problem and define success.",
+                keywords=["customer", "problem", "segment", "outcome", "constraint", "metric", "validate"],
+                sample="I would interview the requestor and similar users, separate the underlying job from the proposed solution, quantify frequency and impact, identify technical and policy constraints, test smaller options, and define adoption and outcome metrics before committing.",
+                variants=(
+                    "A customer asks for a major platform capability. Explain how you would discover the real problem and define success.",
+                    "How would you define a strategy for an internal API platform?",
+                    "A technically impressive feature has low adoption. How would you diagnose and respond?",
+                ),
+            ),
+            technical_rubric(
+                name="Product Prioritization Agent", short="PP", purpose="Roadmap tradeoffs", metric="Product prioritization",
+                question="Prioritize reliability work, technical debt, and new features when capacity cannot cover all three.",
+                keywords=["outcome", "risk", "evidence", "capacity", "tradeoff", "stakeholder", "roadmap"],
+                sample="I would connect each option to outcomes and quantified risk, separate mandatory from discretionary work, compare urgency and reversibility, create capacity scenarios, expose consequences to stakeholders, and revisit priorities using agreed measures.",
+                variants=(
+                    "Prioritize reliability work, technical debt, and new features when capacity cannot cover all three.",
+                    "Engineering estimates make a promised launch impossible. How would you reset the plan?",
+                    "How would you decide whether to build, buy, or partner for a core capability?",
+                ),
+            ),
+        ),
+    ),
     "system-design": InterviewTrack(
         id="system-design",
         name="System Design",
@@ -998,9 +1304,14 @@ def list_interview_tracks() -> list[TrackView]:
     return [track_view(track) for track in TRACKS.values()]
 
 
+@app.get("/api/levels", response_model=list[LevelView])
+def list_experience_levels() -> list[LevelView]:
+    return [level_view(level) for level in EXPERIENCE_LEVELS.values()]
+
+
 @app.post("/api/sessions", response_model=SessionView, status_code=201)
 def start_interview(payload: SessionCreateRequest) -> SessionView:
-    session = create_interview_session(payload.trackId)
+    session = create_interview_session(payload.trackId, payload.levelId)
     return session_view(session)
 
 
@@ -1057,9 +1368,13 @@ def submit_interview_answer(session_id: str, payload: AnswerSubmission) -> Sessi
         return session_view(session)
 
 
-def create_interview_session(track_id: TrackId) -> InterviewSession:
+def create_interview_session(
+    track_id: TrackId,
+    level_id: ExperienceLevelId = "mid",
+) -> InterviewSession:
     now = time.monotonic()
     track = TRACKS[track_id]
+    level = EXPERIENCE_LEVELS[level_id]
     with SESSION_STORE_LOCK:
         purge_expired_sessions(now)
         while len(SESSION_STORE) >= MAX_SESSIONS:
@@ -1069,7 +1384,13 @@ def create_interview_session(track_id: TrackId) -> InterviewSession:
         session_id = secrets.token_urlsafe(24)
         rubrics = (RESUME_RUBRIC, *track.technical_rubrics, HR_RUBRIC)
         stages = [StageRecord(rubric=rubric, question=rubric.question_variants[0]) for rubric in rubrics]
-        session = InterviewSession(session_id=session_id, track=track, stages=stages, updated_at=now)
+        session = InterviewSession(
+            session_id=session_id,
+            track=track,
+            level=level,
+            stages=stages,
+            updated_at=now,
+        )
         SESSION_STORE[session_id] = session
         return session
 
@@ -1101,6 +1422,14 @@ def track_view(track: InterviewTrack) -> TrackView:
         name=track.name,
         description=track.description,
         skills=list(track.skills),
+    )
+
+
+def level_view(level: ExperienceLevel) -> LevelView:
+    return LevelView(
+        id=level.id,
+        name=level.name,
+        description=level.description,
     )
 
 
@@ -1139,6 +1468,7 @@ def session_view(session: InterviewSession) -> SessionView:
     return SessionView(
         sessionId=session.session_id,
         track=track_view(session.track),
+        level=level_view(session.level),
         version=session.version,
         phase=session.phase,
         activeIndex=session.active_index,
@@ -1152,18 +1482,24 @@ def session_view(session: InterviewSession) -> SessionView:
 
 def evaluate_primary_answer(session: InterviewSession, stage: StageRecord) -> PrimaryAgentResult:
     agent = stage.rubric.agent.model_copy(update={"question": stage.question})
-    fallback = local_primary_result(agent, stage.answer)
+    fallback = local_primary_result(
+        agent,
+        stage.answer,
+        expected_words=max(70, session.level.expected_words - 35),
+    )
     if OPENAI_DISABLED or not OPENAI_API_KEY:
         return PrimaryAgentResult.model_validate({**fallback, "mode": "fallback"})
 
     system = (
         "You are an expert interview agent. Assess the candidate's primary answer against the server-provided rubric "
         "and ask exactly one concise follow-up that probes missing evidence, a tradeoff, or measurable impact. Return "
-        "only the required structured fields."
+        "Calibrate expectations to the server-provided experience level. Return only the required structured fields."
     )
     user = json.dumps(
         {
             "track": session.track.name,
+            "experienceLevel": session.level.name,
+            "levelExpectation": session.level.evaluation_expectation,
             "agentName": agent.name,
             "agentPurpose": agent.purpose,
             "rubricMetric": agent.metric,
@@ -1183,18 +1519,25 @@ def evaluate_primary_answer(session: InterviewSession, stage: StageRecord) -> Pr
 
 def evaluate_completed_stage(session: InterviewSession, stage: StageRecord) -> AgentResult:
     agent = stage.rubric.agent.model_copy(update={"question": stage.question})
-    fallback = local_scored_result(agent, f"{stage.answer}\n{stage.follow_up_answer}", expected_words=140)
+    fallback = local_scored_result(
+        agent,
+        f"{stage.answer}\n{stage.follow_up_answer}",
+        expected_words=session.level.expected_words,
+    )
     if OPENAI_DISABLED or not OPENAI_API_KEY:
         return AgentResult.model_validate({**fallback, "mode": "fallback"})
 
     system = (
         "You are an expert interview agent. Produce the final score for one interview stage using both the primary "
         "answer and the required follow-up answer. Score only against the server-provided metric. Return only the "
-        "required structured fields, with a score from 0 to 100."
+        "Calibrate rigor to the server-provided experience level. Return only the required structured fields, with a "
+        "score from 0 to 100."
     )
     user = json.dumps(
         {
             "track": session.track.name,
+            "experienceLevel": session.level.name,
+            "levelExpectation": session.level.evaluation_expectation,
             "agentName": agent.name,
             "agentPurpose": agent.purpose,
             "rubricMetric": agent.metric,
@@ -1219,18 +1562,20 @@ def generate_next_question(session: InterviewSession, stage_index: int) -> str:
     previous_stages = session.stages[:stage_index]
     answers = [f"{item.answer}\nFollow-up: {item.follow_up_answer}" for item in previous_stages]
     results = [item.result for item in previous_stages if item.result]
-    fallback = local_question(stage.rubric, stage_index, answers, results)
+    fallback = local_question(stage.rubric, stage_index, answers, results, session.level)
     if OPENAI_DISABLED or not OPENAI_API_KEY:
         return fallback["question"]
 
     system = (
         "You are an adaptive AI interviewer. Generate one concise question for the current server-owned interview "
         "stage. Use prior completed answers and validated scores to adapt difficulty and avoid repetition. Return only "
-        "the required structured fields."
+        "Calibrate scope and depth to the server-provided experience level. Return only the required structured fields."
     )
     user = json.dumps(
         {
             "track": session.track.name,
+            "experienceLevel": session.level.name,
+            "levelExpectation": session.level.evaluation_expectation,
             "agent": {
                 "name": stage.rubric.agent.name,
                 "purpose": stage.rubric.agent.purpose,
@@ -1270,6 +1615,8 @@ def build_final_evaluation(session: InterviewSession) -> EvaluationResult:
         user = json.dumps(
             {
                 "track": session.track.name,
+                "experienceLevel": session.level.name,
+                "levelExpectation": session.level.evaluation_expectation,
                 "overallScore": overall_score,
                 "stages": [
                     {
@@ -1473,9 +1820,9 @@ def local_scored_result(agent: Agent, answer: str, *, expected_words: int) -> di
     }
 
 
-def local_primary_result(agent: Agent, answer: str) -> dict[str, Any]:
+def local_primary_result(agent: Agent, answer: str, *, expected_words: int = 90) -> dict[str, Any]:
     return {
-        **local_scored_result(agent, answer, expected_words=90),
+        **local_scored_result(agent, answer, expected_words=expected_words),
         "followUpQuestion": f"What is one concrete tradeoff you made during this {agent.purpose.lower()} example?",
     }
 
@@ -1485,6 +1832,7 @@ def local_question(
     stage_index: int,
     answers: list[str],
     results: list[AgentResult],
+    level: ExperienceLevel,
 ) -> dict[str, Any]:
     prior_text = " ".join(answer.lower() for answer in answers if answer)
     weak_count = len([result for result in results if result.score < 60])
@@ -1492,6 +1840,8 @@ def local_question(
     question = rubric.question_variants[selector]
     if weak_count:
         question = f"{question} Please include one concrete example and one measurable signal."
+    if level.id in {"staff", "manager"}:
+        question = f"{question} Address organization-level tradeoffs and influence."
     return {
         "question": question,
         "rationale": "Local adaptive question selected from server-owned rubric and completed interview evidence.",

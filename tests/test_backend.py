@@ -44,8 +44,8 @@ class BackendHardeningTests(unittest.TestCase):
             main.AnswerSubmission(answer=answer, phase=view.phase, version=view.version),
         )
 
-    def start(self, track_id="backend"):
-        return main.start_interview(main.SessionCreateRequest(trackId=track_id))
+    def start(self, track_id="backend", level_id="mid"):
+        return main.start_interview(main.SessionCreateRequest(trackId=track_id, levelId=level_id))
 
     def test_answer_size_and_extra_fields_are_rejected(self):
         with self.assertRaises(ValidationError):
@@ -62,6 +62,7 @@ class BackendHardeningTests(unittest.TestCase):
     def test_session_contract_replaces_client_scoring_routes(self):
         paths = {route.path for route in main.app.routes}
         self.assertIn("/api/tracks", paths)
+        self.assertIn("/api/levels", paths)
         self.assertIn("/api/sessions", paths)
         self.assertIn("/api/sessions/{session_id}/answer", paths)
         self.assertNotIn("/api/question", paths)
@@ -77,9 +78,12 @@ class BackendHardeningTests(unittest.TestCase):
                 "ai-ml", "data-engineering", "cybersecurity", "kubernetes-platform",
                 "mobile", "qa-sdet", "full-stack", "database", "mlops", "devsecops",
                 "solutions-architecture", "engineering-management",
+                "data-science", "analytics-engineering", "embedded-systems",
+                "systems-engineering", "network-engineering", "observability", "finops",
+                "technical-product-management",
             },
         )
-        self.assertEqual(len(tracks), 18)
+        self.assertEqual(len(tracks), 26)
         self.assertNotIn("keywords", json.dumps([track.model_dump() for track in tracks]))
         with self.assertRaises(ValidationError):
             main.SessionCreateRequest(trackId="unknown")
@@ -94,6 +98,33 @@ class BackendHardeningTests(unittest.TestCase):
             self.assertEqual(len(session.stages), 4)
             technical_stage_names.add(tuple(stage.name for stage in session.stages[1:3]))
         self.assertEqual(len(technical_stage_names), len(tracks))
+
+    def test_experience_levels_are_server_owned_and_validated(self):
+        levels = main.list_experience_levels()
+        self.assertEqual(
+            {level.id for level in levels},
+            {"junior", "mid", "senior", "staff", "manager"},
+        )
+        with self.assertRaises(ValidationError):
+            main.SessionCreateRequest(trackId="backend", levelId="principal")
+
+        for level in levels:
+            session = self.start("data-science", level.id)
+            self.assertEqual(session.level.id, level.id)
+            self.assertEqual(session.level.name, level.name)
+            self.assertNotIn("evaluation_expectation", json.dumps(session.model_dump()))
+
+        staff_session = main.create_interview_session("network-engineering", "staff")
+        staff_session.stages[0].answer = "I led a measurable cross-team infrastructure project."
+        staff_session.stages[0].result = main.AgentResult(
+            score=55,
+            strengths=[],
+            weaknesses=["Needs more detail."],
+            notes="Validated",
+            mode="fallback",
+        )
+        staff_question = main.generate_next_question(staff_session, 1)
+        self.assertIn("organization-level tradeoffs and influence", staff_question)
 
     def test_session_view_hides_rubric_keywords_and_provisional_score(self):
         session = self.start()
