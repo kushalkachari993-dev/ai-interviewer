@@ -6,11 +6,5 @@
     "api/index.py": {
       "excludeFiles": "{.venv/**,frontend/node_modules/**,__pycache__/**,.pytest_cache/**,.mypy_cache/**,.ruff_cache/**}"
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    }
-  ]
+  }
 }
