@@ -378,7 +378,16 @@ function App() {
 }
 
 function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTrackId, tracks }) {
+  const [query, setQuery] = useState("");
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) || tracks[0];
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleTracks = tracks.filter((track) => {
+    if (!normalizedQuery) return true;
+    return [track.name, track.description, ...track.skills]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery);
+  });
 
   return (
     <main className="track-page">
@@ -398,8 +407,23 @@ function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTra
         </p>
       </section>
 
+      <section className="track-search" aria-label="Filter interview tracks">
+        <label htmlFor="track-search-input">Search tracks</label>
+        <div className="track-search-row">
+          <input
+            autoComplete="off"
+            id="track-search-input"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Try AI, security, mobile, databases..."
+            type="search"
+            value={query}
+          />
+          <span aria-live="polite">{visibleTracks.length} of {tracks.length} tracks</span>
+        </div>
+      </section>
+
       <section className="track-grid" aria-label="Available interview tracks">
-        {tracks.map((track) => (
+        {visibleTracks.map((track) => (
           <button
             aria-pressed={track.id === selectedTrack?.id}
             className={`track-card ${track.id === selectedTrack?.id ? "selected" : ""}`}
@@ -420,6 +444,9 @@ function TrackSelector({ errorMessage, isLoading, onSelect, onStart, selectedTra
             </span>
           </button>
         ))}
+        {visibleTracks.length === 0 && (
+          <p className="track-empty" role="status">No interview tracks match “{query}”.</p>
+        )}
       </section>
 
       <section className="track-start-panel">

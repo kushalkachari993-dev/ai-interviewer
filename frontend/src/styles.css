@@ -23,6 +23,7 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
@@ -73,6 +74,52 @@ textarea:disabled {
   color: var(--muted);
   font-size: 17px;
   line-height: 1.6;
+}
+
+.track-search {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.track-search > label {
+  font-weight: 700;
+}
+
+.track-search-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.track-search input {
+  width: min(100%, 560px);
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 14px;
+  background: var(--panel);
+  color: var(--ink);
+  outline: none;
+}
+
+.track-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 124, 128, 0.14);
+}
+
+.track-search-row > span,
+.track-empty {
+  color: var(--muted);
+}
+
+.track-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 32px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  text-align: center;
 }
 
 .track-grid {
@@ -673,6 +720,12 @@ li {
 
   .track-grid {
     grid-template-columns: 1fr;
+  }
+
+  .track-search-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .track-card {

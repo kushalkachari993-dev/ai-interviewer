@@ -72,8 +72,14 @@ class BackendHardeningTests(unittest.TestCase):
         tracks = main.list_interview_tracks()
         self.assertEqual(
             {track.id for track in tracks},
-            {"backend", "frontend", "cloud", "terraform", "devops", "system-design"},
+            {
+                "backend", "frontend", "cloud", "terraform", "devops", "system-design",
+                "ai-ml", "data-engineering", "cybersecurity", "kubernetes-platform",
+                "mobile", "qa-sdet", "full-stack", "database", "mlops", "devsecops",
+                "solutions-architecture", "engineering-management",
+            },
         )
+        self.assertEqual(len(tracks), 18)
         self.assertNotIn("keywords", json.dumps([track.model_dump() for track in tracks]))
         with self.assertRaises(ValidationError):
             main.SessionCreateRequest(trackId="unknown")

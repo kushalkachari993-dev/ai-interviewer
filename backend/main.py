@@ -39,7 +39,26 @@ LOGGER = logging.getLogger(__name__)
 
 AnswerText = Annotated[str, Field(min_length=1, max_length=MAX_ANSWER_CHARS)]
 FeedbackText = Annotated[str, Field(min_length=1, max_length=500)]
-TrackId = Literal["backend", "frontend", "cloud", "terraform", "devops", "system-design"]
+TrackId = Literal[
+    "backend",
+    "frontend",
+    "cloud",
+    "terraform",
+    "devops",
+    "system-design",
+    "ai-ml",
+    "data-engineering",
+    "cybersecurity",
+    "kubernetes-platform",
+    "mobile",
+    "qa-sdet",
+    "full-stack",
+    "database",
+    "mlops",
+    "devsecops",
+    "solutions-architecture",
+    "engineering-management",
+]
 
 
 def load_env() -> dict[str, str]:
@@ -530,6 +549,366 @@ TRACKS: dict[TrackId, InterviewTrack] = {
                     "Define SLOs and an error-budget policy for a customer-facing API.",
                     "How would you lead incident response for a cascading production failure?",
                     "Design capacity planning and autoscaling for a service with sharp seasonal traffic spikes.",
+                ),
+            ),
+        ),
+    ),
+    "ai-ml": InterviewTrack(
+        id="ai-ml",
+        name="AI / ML Engineering",
+        description="Production AI systems, RAG, model evaluation, safety, experimentation, and ML fundamentals.",
+        skills=("RAG", "Evaluation", "Models", "Guardrails", "Experimentation"),
+        technical_rubrics=(
+            technical_rubric(
+                name="AI Engineering Agent", short="AI", purpose="Production AI systems", metric="AI engineering",
+                question="Design a production RAG assistant that provides grounded answers with citations and safe failure behavior.",
+                keywords=["retrieval", "embedding", "chunking", "citation", "evaluation", "guardrail", "latency"],
+                sample="I would build permission-aware retrieval, rerank relevant chunks, require citations, evaluate groundedness and recall, add refusal guardrails, and monitor latency, cost, and unsupported claims.",
+                variants=(
+                    "Design a production RAG assistant that provides grounded answers with citations and safe failure behavior.",
+                    "How would you build a reliable agent that can call tools without causing unsafe side effects?",
+                    "Design an AI support workflow that balances quality, latency, cost, and human escalation.",
+                ),
+            ),
+            technical_rubric(
+                name="Model Evaluation Agent", short="ME", purpose="Model quality and experiments", metric="Model evaluation",
+                question="Design an evaluation framework for deciding whether a new model or prompt is safe to release.",
+                keywords=["dataset", "baseline", "metric", "regression", "human", "bias", "experiment"],
+                sample="I would version representative and adversarial datasets, compare against a baseline on task and safety metrics, review slices and failures, use blinded human judgment where needed, and gate releases on explicit thresholds.",
+                variants=(
+                    "Design an evaluation framework for deciding whether a new model or prompt is safe to release.",
+                    "An ML model performs well offline but poorly in production. How would you investigate the gap?",
+                    "How would you detect and reduce bias in a model used for a high-impact workflow?",
+                ),
+            ),
+        ),
+    ),
+    "data-engineering": InterviewTrack(
+        id="data-engineering",
+        name="Data Engineering",
+        description="Batch and streaming pipelines, data modeling, quality, orchestration, and analytics platforms.",
+        skills=("Pipelines", "Streaming", "Warehouses", "Data Quality", "Orchestration"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Data Pipeline Agent", short="DP", purpose="Reliable data movement", metric="Data pipelines",
+                question="Design a pipeline that combines batch and streaming events while remaining correct during retries.",
+                keywords=["stream", "batch", "idempotency", "checkpoint", "schema", "late-data", "observability"],
+                sample="I would define event contracts, use durable checkpoints and idempotent sinks, handle late data with watermarks, quarantine schema failures, reconcile outputs, and monitor freshness and completeness.",
+                variants=(
+                    "Design a pipeline that combines batch and streaming events while remaining correct during retries.",
+                    "How would you backfill a year of data without disrupting current production pipelines?",
+                    "Design data-quality controls for a platform consumed by finance and product teams.",
+                ),
+            ),
+            technical_rubric(
+                name="Analytics Modeling Agent", short="AM", purpose="Analytics data models", metric="Data modeling",
+                question="Design a warehouse model for product metrics that supports history and changing dimensions.",
+                keywords=["fact", "dimension", "grain", "history", "partition", "lineage", "semantic"],
+                sample="I would declare fact-table grain, use conformed dimensions and explicit history rules, partition for common access, document lineage, test metric definitions, and expose a governed semantic layer.",
+                variants=(
+                    "Design a warehouse model for product metrics that supports history and changing dimensions.",
+                    "How would you evolve a shared event schema without breaking downstream consumers?",
+                    "Design a lakehouse layout for governed analytics and exploratory workloads.",
+                ),
+            ),
+        ),
+    ),
+    "cybersecurity": InterviewTrack(
+        id="cybersecurity",
+        name="Cybersecurity / AppSec",
+        description="Threat modeling, secure design, application security, vulnerability management, and incident response.",
+        skills=("Threat Modeling", "AppSec", "OWASP", "Response", "Risk"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Application Security Agent", short="AS", purpose="Secure application design", metric="Application security",
+                question="Threat-model a multi-tenant API and explain how you would prevent cross-tenant data access.",
+                keywords=["asset", "trust-boundary", "authorization", "tenant", "validation", "logging", "test"],
+                sample="I would map assets and trust boundaries, enforce tenant context server-side on every query, use deny-by-default authorization, validate inputs, log access, and add negative authorization tests.",
+                variants=(
+                    "Threat-model a multi-tenant API and explain how you would prevent cross-tenant data access.",
+                    "How would you design secure authentication and session management for a public web application?",
+                    "A critical dependency vulnerability is disclosed. How would you assess and remediate the risk?",
+                ),
+            ),
+            technical_rubric(
+                name="Security Response Agent", short="SC", purpose="Security incidents", metric="Incident response",
+                question="A production credential has leaked publicly. Walk through containment, investigation, and recovery.",
+                keywords=["revoke", "rotate", "contain", "audit", "scope", "evidence", "postmortem"],
+                sample="I would revoke and rotate the credential immediately, preserve evidence, search audit logs for use, scope affected resources and data, contain related access, communicate by severity, and close detection gaps afterward.",
+                variants=(
+                    "A production credential has leaked publicly. Walk through containment, investigation, and recovery.",
+                    "How would you prioritize vulnerabilities across thousands of assets?",
+                    "Design a security review process that fits a fast software delivery lifecycle.",
+                ),
+            ),
+        ),
+    ),
+    "kubernetes-platform": InterviewTrack(
+        id="kubernetes-platform",
+        name="Kubernetes / Platform Engineering",
+        description="Kubernetes architecture, developer platforms, multi-tenancy, networking, operations, and golden paths.",
+        skills=("Kubernetes", "Platforms", "Multi-tenancy", "Networking", "GitOps"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Kubernetes Engineering Agent", short="KE", purpose="Cluster architecture", metric="Kubernetes engineering",
+                question="Design a secure multi-tenant Kubernetes platform for many product teams.",
+                keywords=["namespace", "rbac", "network-policy", "quota", "admission", "upgrade", "observability"],
+                sample="I would define tenancy boundaries, least-privilege RBAC, default-deny network policies, quotas, admission controls, workload identity, centralized observability, and tested upgrade and recovery procedures.",
+                variants=(
+                    "Design a secure multi-tenant Kubernetes platform for many product teams.",
+                    "A Kubernetes cluster has intermittent networking failures. How would you diagnose them?",
+                    "How would you upgrade clusters and workloads with minimal risk and downtime?",
+                ),
+            ),
+            technical_rubric(
+                name="Developer Platform Agent", short="PF", purpose="Internal developer platforms", metric="Platform engineering",
+                question="Design a self-service golden path that speeds delivery without removing necessary team flexibility.",
+                keywords=["self-service", "template", "catalog", "guardrail", "ownership", "feedback", "adoption"],
+                sample="I would start from developer pain, provide versioned templates and paved workflows, embed security and observability defaults, allow documented escape hatches, measure adoption and lead time, and iterate with users.",
+                variants=(
+                    "Design a self-service golden path that speeds delivery without removing necessary team flexibility.",
+                    "How would you measure whether an internal developer platform is succeeding?",
+                    "Design a service catalog that keeps ownership and operational metadata trustworthy.",
+                ),
+            ),
+        ),
+    ),
+    "mobile": InterviewTrack(
+        id="mobile",
+        name="Mobile Engineering",
+        description="iOS and Android architecture, offline data, performance, releases, testing, and mobile reliability.",
+        skills=("iOS / Android", "Offline", "Performance", "Releases", "Testing"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Mobile Architecture Agent", short="MA", purpose="Mobile application design", metric="Mobile engineering",
+                question="Design an offline-first mobile workflow that synchronizes edits across multiple devices.",
+                keywords=["cache", "sync", "conflict", "queue", "retry", "state", "encryption"],
+                sample="I would persist an encrypted local model, queue idempotent mutations, track server versions, choose explicit conflict rules, retry with backoff, surface unresolved conflicts, and test reconnect scenarios.",
+                variants=(
+                    "Design an offline-first mobile workflow that synchronizes edits across multiple devices.",
+                    "How would you structure a large mobile application for independent feature teams?",
+                    "Design secure storage and authentication for a mobile banking application.",
+                ),
+            ),
+            technical_rubric(
+                name="Mobile Reliability Agent", short="MR", purpose="Mobile quality and delivery", metric="Mobile reliability",
+                question="A mobile release increases crashes and startup time. How would you detect, contain, and fix it?",
+                keywords=["crash", "startup", "telemetry", "rollout", "rollback", "profiling", "device"],
+                sample="I would segment crash and startup telemetry by version and device, halt the staged rollout, use symbolicated traces and profiles, ship a focused fix, validate affected devices, and strengthen release gates.",
+                variants=(
+                    "A mobile release increases crashes and startup time. How would you detect, contain, and fix it?",
+                    "How would you design a staged mobile release when app-store rollback is limited?",
+                    "Build a testing strategy for a mobile app across devices, OS versions, and unreliable networks.",
+                ),
+            ),
+        ),
+    ),
+    "qa-sdet": InterviewTrack(
+        id="qa-sdet",
+        name="QA Automation / SDET",
+        description="Test strategy, automation frameworks, reliability, performance testing, and quality engineering.",
+        skills=("Automation", "Test Design", "Performance", "CI", "Quality"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Test Strategy Agent", short="TS", purpose="Quality architecture", metric="Test strategy",
+                question="Design a layered test strategy for a distributed web application with frequent releases.",
+                keywords=["unit", "integration", "contract", "e2e", "risk", "environment", "feedback"],
+                sample="I would map tests to product risk, keep most checks at unit and integration layers, use contract tests at service boundaries, reserve E2E for critical journeys, control test data, and track speed and defect escape.",
+                variants=(
+                    "Design a layered test strategy for a distributed web application with frequent releases.",
+                    "How would you test a payment workflow for correctness under retries and partial failures?",
+                    "Design a performance-testing program for an API with unpredictable traffic peaks.",
+                ),
+            ),
+            technical_rubric(
+                name="Automation Reliability Agent", short="AR", purpose="Reliable test automation", metric="Automation engineering",
+                question="An end-to-end suite is slow and flaky. Explain how you would make it trustworthy.",
+                keywords=["flaky", "isolation", "deterministic", "data", "parallel", "retry", "ownership"],
+                sample="I would measure failures by cause, remove shared state and timing assumptions, create deterministic data, improve diagnostics, parallelize isolated tests, quarantine only with owners and deadlines, and avoid hiding failures with retries.",
+                variants=(
+                    "An end-to-end suite is slow and flaky. Explain how you would make it trustworthy.",
+                    "How would you design a maintainable API automation framework for multiple teams?",
+                    "A defect escaped despite passing tests. How would you improve the quality system?",
+                ),
+            ),
+        ),
+    ),
+    "full-stack": InterviewTrack(
+        id="full-stack",
+        name="Full-Stack Engineering",
+        description="End-to-end product delivery across user interfaces, APIs, data, security, and operations.",
+        skills=("Frontend", "Backend", "Databases", "Security", "Delivery"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Full-Stack Delivery Agent", short="FS", purpose="End-to-end product delivery", metric="Full-stack engineering",
+                question="Design and deliver a team-invitations feature across UI, API, database, and authorization.",
+                keywords=["ui", "api", "schema", "authorization", "validation", "transaction", "test"],
+                sample="I would define user states and the API contract, model expiring invitations with unique constraints, enforce team authorization server-side, make acceptance transactional and idempotent, and test the critical flow across layers.",
+                variants=(
+                    "Design and deliver a team-invitations feature across UI, API, database, and authorization.",
+                    "How would you build a searchable activity feed from browser interaction through storage?",
+                    "Design a file-upload feature with progress, validation, secure storage, and failure recovery.",
+                ),
+            ),
+            technical_rubric(
+                name="System Integration Agent", short="SI", purpose="Cross-layer integration", metric="System integration",
+                question="Design error handling and observability across a browser, API, queue, and worker workflow.",
+                keywords=["error", "trace", "correlation", "retry", "idempotency", "status", "monitoring"],
+                sample="I would define stable error contracts, propagate correlation IDs, make asynchronous work idempotent, expose durable job status, bound retries, trace each boundary, and alert on user-impacting failures.",
+                variants=(
+                    "Design error handling and observability across a browser, API, queue, and worker workflow.",
+                    "How would you migrate an end-to-end feature without breaking old clients?",
+                    "A feature is fast locally but slow in production. How would you diagnose it across the stack?",
+                ),
+            ),
+        ),
+    ),
+    "database": InterviewTrack(
+        id="database",
+        name="Database Engineering",
+        description="Schema design, query performance, transactions, replication, migrations, backup, and recovery.",
+        skills=("SQL", "Modeling", "Transactions", "Replication", "Recovery"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Database Design Agent", short="DB", purpose="Database architecture", metric="Database design",
+                question="Design the database for a high-write financial ledger that must preserve an audit trail.",
+                keywords=["ledger", "transaction", "constraint", "idempotency", "index", "partition", "audit"],
+                sample="I would use immutable double-entry records, transactional balance invariants, idempotency keys and unique constraints, indexes for access paths, controlled partitioning, and reconciliation instead of mutating history.",
+                variants=(
+                    "Design the database for a high-write financial ledger that must preserve an audit trail.",
+                    "How would you model inventory reservations while preventing overselling?",
+                    "A critical SQL query becomes slow as data grows. Walk through diagnosis and tuning.",
+                ),
+            ),
+            technical_rubric(
+                name="Database Reliability Agent", short="DR", purpose="Database operations", metric="Database reliability",
+                question="Plan a zero-downtime schema migration for a very large production table.",
+                keywords=["migration", "expand-contract", "backfill", "lock", "replica", "rollback", "backup"],
+                sample="I would use expand-contract changes, avoid long locks, backfill in throttled resumable batches, validate replicas and lag, provide rollback gates, and test recovery from backups.",
+                variants=(
+                    "Plan a zero-downtime schema migration for a very large production table.",
+                    "Design replication and failover for a database with strict recovery objectives.",
+                    "How would you prove that backups are complete and actually recoverable?",
+                ),
+            ),
+        ),
+    ),
+    "mlops": InterviewTrack(
+        id="mlops",
+        name="MLOps",
+        description="Reproducible ML pipelines, model registries, deployment, monitoring, drift, and governance.",
+        skills=("ML Pipelines", "Registry", "Deployment", "Drift", "Governance"),
+        technical_rubrics=(
+            technical_rubric(
+                name="MLOps Pipeline Agent", short="MP", purpose="ML delivery pipelines", metric="MLOps delivery",
+                question="Design a reproducible pipeline from training data through model registration and deployment.",
+                keywords=["version", "lineage", "feature", "experiment", "registry", "approval", "reproducible"],
+                sample="I would version code, data, features, environments, and parameters; record lineage and evaluations; register only qualified artifacts; require approval; and promote the same immutable model across environments.",
+                variants=(
+                    "Design a reproducible pipeline from training data through model registration and deployment.",
+                    "How would you prevent training-serving skew in an online prediction system?",
+                    "Design a feature platform that supports reuse without leaking future information.",
+                ),
+            ),
+            technical_rubric(
+                name="Model Operations Agent", short="MO", purpose="Production model operations", metric="Model operations",
+                question="Design monitoring and rollback for a model whose data distribution changes over time.",
+                keywords=["drift", "quality", "shadow", "canary", "rollback", "baseline", "alert"],
+                sample="I would monitor input and prediction drift alongside delayed outcome quality, compare against baselines, shadow and canary new versions, define business-aware alerts, preserve instant rollback, and trigger reviewed retraining.",
+                variants=(
+                    "Design monitoring and rollback for a model whose data distribution changes over time.",
+                    "A newly deployed model degrades a business metric. How would you investigate and respond?",
+                    "How would you govern model approvals and evidence for a regulated use case?",
+                ),
+            ),
+        ),
+    ),
+    "devsecops": InterviewTrack(
+        id="devsecops",
+        name="DevSecOps / Security Operations",
+        description="Secure delivery, software supply chain, cloud controls, detection, secrets, and operational response.",
+        skills=("Supply Chain", "Cloud Security", "Secrets", "Detection", "Policy"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Secure Delivery Agent", short="SD", purpose="Software supply-chain security", metric="DevSecOps delivery",
+                question="Design a secure software-delivery pipeline from source commit to production artifact.",
+                keywords=["identity", "artifact", "signing", "sbom", "scan", "provenance", "policy"],
+                sample="I would protect source and CI identities, build immutable artifacts in isolated runners, generate an SBOM and provenance, scan and sign artifacts, enforce risk-based policies, and verify signatures at deployment.",
+                variants=(
+                    "Design a secure software-delivery pipeline from source commit to production artifact.",
+                    "How would you introduce security gates without making teams bypass the delivery process?",
+                    "A build dependency is compromised. How would you identify exposure and recover?",
+                ),
+            ),
+            technical_rubric(
+                name="Cloud Security Operations Agent", short="SO", purpose="Cloud security operations", metric="Security operations",
+                question="Design IAM, secrets, policy, and detection controls for a cloud-native production environment.",
+                keywords=["least-privilege", "workload-identity", "secret", "policy", "audit", "detection", "response"],
+                sample="I would use short-lived workload identity, least-privilege roles, centralized secret rotation, policy-as-code, immutable audit logs, detections for risky behavior, and rehearsed response playbooks.",
+                variants=(
+                    "Design IAM, secrets, policy, and detection controls for a cloud-native production environment.",
+                    "How would you detect and contain suspicious activity in a production cloud account?",
+                    "Design secrets rotation for many services without causing an outage.",
+                ),
+            ),
+        ),
+    ),
+    "solutions-architecture": InterviewTrack(
+        id="solutions-architecture",
+        name="Solutions Architecture",
+        description="Requirements discovery, system tradeoffs, integration design, migrations, governance, and communication.",
+        skills=("Discovery", "Architecture", "Integration", "Migration", "Tradeoffs"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Solution Design Agent", short="SA", purpose="Constraint-driven architecture", metric="Solutions architecture",
+                question="Design a phased modernization plan for a critical legacy application with strict uptime constraints.",
+                keywords=["requirement", "constraint", "migration", "strangler", "risk", "cost", "stakeholder"],
+                sample="I would clarify business outcomes and constraints, map dependencies, introduce a strangler boundary, migrate low-risk capabilities first, define data and rollback strategies, measure value, and communicate cost and risk.",
+                variants=(
+                    "Design a phased modernization plan for a critical legacy application with strict uptime constraints.",
+                    "How would you choose between build, buy, and managed services for a strategic capability?",
+                    "Design a multi-region customer platform while explaining cost and consistency tradeoffs.",
+                ),
+            ),
+            technical_rubric(
+                name="Integration Architecture Agent", short="IA", purpose="Enterprise integrations", metric="Integration architecture",
+                question="Design an integration platform for internal services and external partners with different reliability levels.",
+                keywords=["contract", "api", "event", "version", "identity", "retry", "governance"],
+                sample="I would separate synchronous and event-driven contracts, version schemas, authenticate each partner, use idempotency and bounded retries, isolate failures, publish ownership and SLOs, and test compatibility.",
+                variants=(
+                    "Design an integration platform for internal services and external partners with different reliability levels.",
+                    "How would you translate ambiguous stakeholder needs into an architecture decision?",
+                    "A proposed architecture exceeds the customer's budget. How would you redesign and communicate tradeoffs?",
+                ),
+            ),
+        ),
+    ),
+    "engineering-management": InterviewTrack(
+        id="engineering-management",
+        name="Engineering Management",
+        description="People leadership, delivery, technical strategy, team health, stakeholder alignment, and execution.",
+        skills=("Leadership", "Delivery", "Coaching", "Strategy", "Stakeholders"),
+        technical_rubrics=(
+            technical_rubric(
+                name="Engineering Leadership Agent", short="EL", purpose="People and delivery leadership", metric="Engineering management",
+                question="A capable team is repeatedly missing commitments and morale is falling. How would you respond?",
+                keywords=["diagnose", "clarity", "capacity", "priority", "coach", "metric", "trust"],
+                sample="I would gather evidence and listen to the team, clarify outcomes and ownership, reduce competing priorities, address capability or process gaps through coaching, reset commitments, and track delivery and team-health signals.",
+                variants=(
+                    "A capable team is repeatedly missing commitments and morale is falling. How would you respond?",
+                    "How would you handle sustained underperformance while treating the engineer fairly?",
+                    "Two senior engineers strongly disagree on a critical decision. How would you lead resolution?",
+                ),
+            ),
+            technical_rubric(
+                name="Engineering Strategy Agent", short="ES", purpose="Technical strategy and alignment", metric="Engineering strategy",
+                question="Build an engineering investment plan that balances roadmap delivery, reliability, and technical debt.",
+                keywords=["outcome", "roadmap", "risk", "debt", "capacity", "stakeholder", "measure"],
+                sample="I would connect investments to business outcomes and operational risk, quantify debt, reserve capacity by explicit policy, sequence enabling work with roadmap value, agree tradeoffs, and measure results quarterly.",
+                variants=(
+                    "Build an engineering investment plan that balances roadmap delivery, reliability, and technical debt.",
+                    "How would you reorganize team ownership as a product and organization grow?",
+                    "Leadership asks for an unrealistic deadline. How would you create and communicate options?",
                 ),
             ),
         ),

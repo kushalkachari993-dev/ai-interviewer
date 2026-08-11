@@ -5,7 +5,7 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 ## Features
 
 - Server-owned interview sessions, rubrics, stage scores, and final evaluations
-- Candidate-selected Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, and System Design tracks
+- 18 candidate-selected tracks spanning software, cloud, data/AI, security, quality, architecture, and management
 - Shared Resume and HR stages plus two track-specific technical stages
 - One required follow-up before each stage is scored
 - Partial scores calculated only from completed stages
@@ -13,6 +13,8 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 - Local deterministic fallback when no API key is configured
 - Browser voice input and question playback
 - React/Vite frontend and FastAPI backend
+
+Available tracks: Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, System Design, AI/ML, Data Engineering, Cybersecurity/AppSec, Kubernetes/Platform Engineering, Mobile, QA Automation/SDET, Full-Stack, Database Engineering, MLOps, DevSecOps/Security Operations, Solutions Architecture, and Engineering Management.
 
 ## Setup
 
