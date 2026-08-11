@@ -62,6 +62,7 @@ class BackendHardeningTests(unittest.TestCase):
     def test_session_contract_replaces_client_scoring_routes(self):
         paths = {route.path for route in main.app.routes}
         self.assertIn("/api/tracks", paths)
+        self.assertIn("/api/categories", paths)
         self.assertIn("/api/levels", paths)
         self.assertIn("/api/sessions", paths)
         self.assertIn("/api/sessions/{session_id}/answer", paths)
@@ -84,6 +85,7 @@ class BackendHardeningTests(unittest.TestCase):
             },
         )
         self.assertEqual(len(tracks), 26)
+        self.assertEqual(len([track for track in tracks if track.featured]), 6)
         self.assertNotIn("keywords", json.dumps([track.model_dump() for track in tracks]))
         with self.assertRaises(ValidationError):
             main.SessionCreateRequest(trackId="unknown")
@@ -98,6 +100,14 @@ class BackendHardeningTests(unittest.TestCase):
             self.assertEqual(len(session.stages), 4)
             technical_stage_names.add(tuple(stage.name for stage in session.stages[1:3]))
         self.assertEqual(len(technical_stage_names), len(tracks))
+
+        categories = main.list_track_categories()
+        self.assertEqual(len(categories), 6)
+        self.assertEqual(sum(category.trackCount for category in categories), len(tracks))
+        self.assertEqual(
+            {track.categoryId for track in tracks},
+            {category.id for category in categories},
+        )
 
     def test_experience_levels_are_server_owned_and_validated(self):
         levels = main.list_experience_levels()

@@ -1,16 +1,76 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Mic, Square, Volume2 } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Blocks,
+  Bot,
+  Boxes,
+  BrainCircuit,
+  CircleDollarSign,
+  ClipboardList,
+  Cloud,
+  Cpu,
+  Database,
+  FlaskConical,
+  GitBranch,
+  Layers3,
+  LayoutDashboard,
+  LineChart,
+  Mic,
+  Network,
+  Router,
+  Server,
+  ShieldAlert,
+  ShieldCheck,
+  ShipWheel,
+  Smartphone,
+  Square,
+  Terminal,
+  Users,
+  Volume2,
+  Workflow,
+} from "lucide-react";
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
 const MAX_ANSWER_CHARS = 4800;
 const SESSION_STORAGE_KEY = "aiInterviewerSessionId";
 
+const TRACK_ICONS = {
+  backend: Server,
+  frontend: LayoutDashboard,
+  cloud: Cloud,
+  terraform: Boxes,
+  devops: GitBranch,
+  "system-design": Blocks,
+  "ai-ml": BrainCircuit,
+  "data-engineering": Workflow,
+  cybersecurity: ShieldCheck,
+  "kubernetes-platform": ShipWheel,
+  mobile: Smartphone,
+  "qa-sdet": FlaskConical,
+  "full-stack": Layers3,
+  database: Database,
+  mlops: Bot,
+  devsecops: ShieldAlert,
+  "solutions-architecture": Network,
+  "engineering-management": Users,
+  "data-science": BarChart3,
+  "analytics-engineering": LineChart,
+  "embedded-systems": Cpu,
+  "systems-engineering": Terminal,
+  "network-engineering": Router,
+  observability: Activity,
+  finops: CircleDollarSign,
+  "technical-product-management": ClipboardList,
+};
+
 function App() {
   const [session, setSession] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [levels, setLevels] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedTrackId, setSelectedTrackId] = useState("");
   const [selectedLevelId, setSelectedLevelId] = useState("mid");
   const [draft, setDraft] = useState("");
@@ -35,13 +95,15 @@ function App() {
 
     async function initializeSession() {
       try {
-        const [availableTracks, availableLevels] = await Promise.all([
+        const [availableTracks, availableLevels, availableCategories] = await Promise.all([
           getJson("/api/tracks"),
           getJson("/api/levels"),
+          getJson("/api/categories"),
         ]);
         if (!cancelled) {
           setTracks(availableTracks);
           setLevels(availableLevels);
+          setCategories(availableCategories);
           setSelectedTrackId(availableTracks[0]?.id || "");
           setSelectedLevelId(availableLevels.find((level) => level.id === "mid")?.id || availableLevels[0]?.id || "");
         }
@@ -196,9 +258,10 @@ function App() {
     );
   }
 
-  if (!session && tracks.length && levels.length) {
+  if (!session && tracks.length && levels.length && categories.length) {
     return (
       <TrackSelector
+        categories={categories}
         errorMessage={errorMessage}
         isLoading={isLoading}
         levels={levels}
@@ -395,6 +458,7 @@ function App() {
 }
 
 function TrackSelector({
+  categories,
   errorMessage,
   isLoading,
   levels,
@@ -406,16 +470,38 @@ function TrackSelector({
   tracks,
 }) {
   const [query, setQuery] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("popular");
   const selectedTrack = tracks.find((track) => track.id === selectedTrackId) || tracks[0];
   const selectedLevel = levels.find((level) => level.id === selectedLevelId) || levels[0];
   const normalizedQuery = query.trim().toLowerCase();
-  const visibleTracks = tracks.filter((track) => {
-    if (!normalizedQuery) return true;
-    return [track.name, track.description, ...track.skills]
+  const popularCategory = {
+    id: "popular",
+    name: "Popular",
+    description: "A focused starting point with the most commonly practiced interview tracks.",
+    trackCount: tracks.filter((track) => track.featured).length,
+  };
+  const categoryOptions = [popularCategory, ...categories];
+  const selectedCategory = categoryOptions.find((category) => category.id === selectedCategoryId) || popularCategory;
+  const categoryTracks = tracks.filter((track) => (
+    selectedCategoryId === "popular" ? track.featured : track.categoryId === selectedCategoryId
+  ));
+  const visibleTracks = normalizedQuery
+    ? tracks.filter((track) => [track.name, track.description, ...track.skills]
       .join(" ")
       .toLowerCase()
-      .includes(normalizedQuery);
-  });
+      .includes(normalizedQuery))
+    : categoryTracks;
+
+  function chooseCategory(categoryId) {
+    setSelectedCategoryId(categoryId);
+    setQuery("");
+    const candidates = tracks.filter((track) => (
+      categoryId === "popular" ? track.featured : track.categoryId === categoryId
+    ));
+    if (!candidates.some((track) => track.id === selectedTrack?.id) && candidates[0]) {
+      onSelect(candidates[0].id);
+    }
+  }
 
   return (
     <main className="track-page">
@@ -459,8 +545,30 @@ function TrackSelector({
         </div>
       </section>
 
+      <section className="category-selector" aria-labelledby="category-selector-title">
+        <div className="category-selector-heading">
+          <p className="eyebrow">Step 2</p>
+          <h3 id="category-selector-title">Choose an area</h3>
+        </div>
+        <div className="category-chips" aria-label="Track categories">
+          {categoryOptions.map((category) => (
+            <button
+              aria-pressed={category.id === selectedCategory.id}
+              className={category.id === selectedCategory.id ? "selected" : ""}
+              key={category.id}
+              onClick={() => chooseCategory(category.id)}
+              type="button"
+            >
+              <span>{category.name}</span>
+              <small>{category.trackCount}</small>
+            </button>
+          ))}
+        </div>
+        <p className="category-description">{selectedCategory.description}</p>
+      </section>
+
       <section className="track-search" aria-label="Filter interview tracks">
-        <label htmlFor="track-search-input"><span className="eyebrow">Step 2</span> Search and select a track</label>
+        <label htmlFor="track-search-input"><span className="eyebrow">Step 3</span> Select a track</label>
         <div className="track-search-row">
           <input
             autoComplete="off"
@@ -470,53 +578,58 @@ function TrackSelector({
             type="search"
             value={query}
           />
-          <span aria-live="polite">{visibleTracks.length} of {tracks.length} tracks</span>
+          <span aria-live="polite">
+            {normalizedQuery ? `${visibleTracks.length} search results` : `${visibleTracks.length} ${selectedCategory.name} tracks`}
+          </span>
         </div>
       </section>
 
-      <section className="track-grid" aria-label="Available interview tracks">
-        {visibleTracks.map((track) => (
+      <div className="track-browser">
+        <section className="track-grid" aria-label="Available interview tracks">
+          {visibleTracks.map((track) => {
+            const TrackIcon = TRACK_ICONS[track.id] || Blocks;
+            return (
+              <button
+                aria-pressed={track.id === selectedTrack?.id}
+                className={`track-card ${track.id === selectedTrack?.id ? "selected" : ""}`}
+                key={track.id}
+                onClick={() => onSelect(track.id)}
+                type="button"
+              >
+                <span className="track-card-topline">
+                  <span className="track-icon"><TrackIcon aria-hidden="true" size={23} strokeWidth={2} /></span>
+                  <span className="track-check">{track.id === selectedTrack?.id ? "Selected" : "Choose"}</span>
+                </span>
+                <strong>{track.name}</strong>
+                <span className="track-description">{track.description}</span>
+                <span className="skill-list">
+                  {track.skills.map((skill) => <span key={skill}>{skill}</span>)}
+                </span>
+              </button>
+            );
+          })}
+          {visibleTracks.length === 0 && (
+            <p className="track-empty" role="status">No interview tracks match “{query}”. Try another keyword or category.</p>
+          )}
+        </section>
+
+        <section className="track-start-panel" aria-label="Selected interview summary">
+          <div>
+            <span className="eyebrow">Step 4 · Ready to begin</span>
+            <h3>{selectedTrack?.name}</h3>
+            <p>{selectedLevel?.name} interview · 4 stages · 4 required follow-ups · about 20–30 minutes</p>
+            {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
+          </div>
           <button
-            aria-pressed={track.id === selectedTrack?.id}
-            className={`track-card ${track.id === selectedTrack?.id ? "selected" : ""}`}
-            key={track.id}
-            onClick={() => onSelect(track.id)}
+            className="primary-button track-start-button"
+            disabled={isLoading || !selectedTrack || !selectedLevel}
+            onClick={() => onStart(selectedTrack.id, selectedLevel.id)}
             type="button"
           >
-            <span className="track-card-topline">
-              <span className="track-monogram">
-                {track.name.split(/[\s/]+/).filter(Boolean).map((word) => word[0]).join("").slice(0, 2)}
-              </span>
-              <span className="track-check">{track.id === selectedTrack?.id ? "Selected" : "Choose"}</span>
-            </span>
-            <strong>{track.name}</strong>
-            <span className="track-description">{track.description}</span>
-            <span className="skill-list">
-              {track.skills.map((skill) => <span key={skill}>{skill}</span>)}
-            </span>
+            {isLoading ? "Starting…" : `Start ${selectedTrack?.name || "interview"}`}
           </button>
-        ))}
-        {visibleTracks.length === 0 && (
-          <p className="track-empty" role="status">No interview tracks match “{query}”.</p>
-        )}
-      </section>
-
-      <section className="track-start-panel">
-        <div>
-          <span className="eyebrow">Ready to begin</span>
-          <h3>{selectedTrack?.name}</h3>
-          <p>{selectedLevel?.name} interview · 4 stages · 4 required follow-ups · about 20–30 minutes</p>
-          {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
-        </div>
-        <button
-          className="primary-button track-start-button"
-          disabled={isLoading || !selectedTrack || !selectedLevel}
-          onClick={() => onStart(selectedTrack.id, selectedLevel.id)}
-          type="button"
-        >
-          {isLoading ? "Starting…" : `Start ${selectedTrack?.name || "interview"}`}
-        </button>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
@@ -622,3 +735,4 @@ async function requestJson(path, options) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+window.sessionStorage.removeItem("aiInterviewerAssetRetry");

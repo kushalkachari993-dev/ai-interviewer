@@ -7,6 +7,7 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 - Server-owned interview sessions, rubrics, stage scores, and final evaluations
 - 26 candidate-selected tracks spanning software, cloud, data/AI, security, systems, quality, product, architecture, and management
 - Five candidate-selected experience levels with level-calibrated questions and scoring expectations
+- Server-owned track categories, popular-track discovery, and a compact four-step selector
 - Shared Resume and HR stages plus two track-specific technical stages
 - One required follow-up before each stage is scored
 - Partial scores calculated only from completed stages
@@ -18,6 +19,8 @@ FastAPI + React GenAI interview platform with adaptive LLM-generated questions, 
 Available tracks: Backend, Frontend, Cloud, Terraform/IaC, DevOps/SRE, System Design, AI/ML, Data Engineering, Cybersecurity/AppSec, Kubernetes/Platform Engineering, Mobile, QA Automation/SDET, Full-Stack, Database Engineering, MLOps, DevSecOps/Security Operations, Solutions Architecture, Engineering Management, Data Science, Analytics Engineering/BI, Embedded Systems/Firmware, Linux/Systems Engineering, Network Engineering, Observability Engineering, FinOps/Cloud Cost Engineering, and Technical Product Management.
 
 Available levels: Junior, Mid-level, Senior, Staff, and Manager. The server owns each level's evaluation expectations and uses them to calibrate adaptive questions, follow-ups, and scoring depth.
+
+Track discovery starts with six popular options and supports Software, Cloud & Platform, Data & AI, Security & Quality, Systems, and Architecture & Leadership categories. Search still spans all 26 tracks.
 
 ## Setup
 
@@ -122,6 +125,7 @@ The built-in session store is bounded to 500 sessions with a one-hour inactivity
 
 - `GET /api/health`
 - `GET /api/tracks`
+- `GET /api/categories`
 - `GET /api/levels`
 - `POST /api/sessions` with `{ "trackId": "backend", "levelId": "senior" }`
 - `GET /api/sessions/{session_id}`

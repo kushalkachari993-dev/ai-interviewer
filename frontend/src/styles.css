@@ -142,6 +142,67 @@ textarea:disabled {
   line-height: 1.45;
 }
 
+.category-selector {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.category-selector-heading h3 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.category-chips button:hover {
+  border-color: #9fc7c5;
+}
+
+.category-chips button.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.category-chips small {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(100, 113, 125, 0.12);
+  font-size: 11px;
+}
+
+.category-chips button.selected small {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.category-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .track-search {
   display: grid;
   gap: 8px;
@@ -192,8 +253,15 @@ textarea:disabled {
 
 .track-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.track-browser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: 18px;
 }
 
 .track-card {
@@ -228,7 +296,7 @@ textarea:disabled {
   gap: 12px;
 }
 
-.track-monogram {
+.track-icon {
   display: grid;
   width: 42px;
   height: 42px;
@@ -236,7 +304,6 @@ textarea:disabled {
   border-radius: 10px;
   background: #eaf3f3;
   color: var(--accent-dark);
-  font-weight: 900;
 }
 
 .track-check {
@@ -277,15 +344,15 @@ textarea:disabled {
 }
 
 .track-start-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 22px;
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 18px 20px;
   background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(14px);
   box-shadow: var(--shadow);
 }
 
@@ -300,8 +367,7 @@ textarea:disabled {
 }
 
 .track-start-button {
-  flex: 0 0 auto;
-  min-width: 220px;
+  width: 100%;
 }
 
 .shell {
@@ -775,8 +841,8 @@ li {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .track-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .track-browser {
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
 
   .shell {
@@ -796,7 +862,12 @@ li {
     padding: 24px 0;
   }
 
+  .track-browser {
+    grid-template-columns: 1fr;
+  }
+
   .track-grid {
+    gap: 8px;
     grid-template-columns: 1fr;
   }
 
@@ -818,6 +889,18 @@ li {
     min-height: 0;
   }
 
+  .category-chips {
+    flex-wrap: nowrap;
+    margin-right: -14px;
+    padding-right: 14px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .category-chips button {
+    flex: 0 0 auto;
+  }
+
   .track-search-row {
     align-items: stretch;
     flex-direction: column;
@@ -825,12 +908,34 @@ li {
   }
 
   .track-card {
-    min-height: 220px;
+    min-height: 0;
+    gap: 8px;
+    padding: 14px;
+  }
+
+  .track-card > strong {
+    font-size: 17px;
+  }
+
+  .track-card .track-description,
+  .track-card .skill-list {
+    display: none;
   }
 
   .track-start-panel {
     position: static;
-    display: grid;
+    order: -1;
+    gap: 10px;
+    padding: 13px 14px;
+  }
+
+  .track-start-panel h3 {
+    font-size: 17px;
+  }
+
+  .track-start-panel p {
+    margin: 2px 0 0;
+    font-size: 11px;
   }
 
   .track-start-button {

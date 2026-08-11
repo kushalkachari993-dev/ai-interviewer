@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Interviewer Platform</title>
+    <script>
+      window.addEventListener("error", function (event) {
+        var target = event.target;
+        if (!target || target.tagName !== "SCRIPT" || !target.src) return;
+        var retryKey = "aiInterviewerAssetRetry";
+        if (window.sessionStorage.getItem(retryKey)) return;
+        window.sessionStorage.setItem(retryKey, "1");
+        var retryUrl = new URL(window.location.href);
+        retryUrl.searchParams.set("asset-retry", Date.now().toString());
+        window.location.replace(retryUrl.toString());
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -68,6 +68,14 @@ TrackId = Literal[
     "technical-product-management",
 ]
 ExperienceLevelId = Literal["junior", "mid", "senior", "staff", "manager"]
+TrackCategoryId = Literal[
+    "software",
+    "cloud-platform",
+    "data-ai",
+    "security-quality",
+    "systems",
+    "architecture-leadership",
+]
 
 
 def load_env() -> dict[str, str]:
@@ -200,6 +208,15 @@ class TrackView(StrictModel):
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(min_length=1, max_length=240)
     skills: list[str] = Field(min_length=1, max_length=8)
+    categoryId: TrackCategoryId
+    featured: bool
+
+
+class CategoryView(StrictModel):
+    id: TrackCategoryId
+    name: str = Field(min_length=1, max_length=60)
+    description: str = Field(min_length=1, max_length=180)
+    trackCount: int = Field(ge=1, le=30)
 
 
 class LevelView(StrictModel):
@@ -260,6 +277,14 @@ class ExperienceLevel:
     description: str
     evaluation_expectation: str
     expected_words: int
+
+
+@dataclass(frozen=True)
+class TrackCategory:
+    id: TrackCategoryId
+    name: str
+    description: str
+    track_ids: tuple[TrackId, ...]
 
 
 @dataclass
@@ -1228,6 +1253,59 @@ TRACKS: dict[TrackId, InterviewTrack] = {
     ),
 }
 
+TRACK_CATEGORIES: dict[TrackCategoryId, TrackCategory] = {
+    "software": TrackCategory(
+        id="software",
+        name="Software",
+        description="Application development across backend, frontend, full-stack, and mobile roles.",
+        track_ids=("backend", "frontend", "full-stack", "mobile"),
+    ),
+    "cloud-platform": TrackCategory(
+        id="cloud-platform",
+        name="Cloud & Platform",
+        description="Cloud infrastructure, delivery platforms, reliability, observability, and cost.",
+        track_ids=("cloud", "terraform", "devops", "kubernetes-platform", "observability", "finops"),
+    ),
+    "data-ai": TrackCategory(
+        id="data-ai",
+        name="Data & AI",
+        description="Data platforms, analytics, databases, machine learning, and production AI.",
+        track_ids=("ai-ml", "data-engineering", "data-science", "analytics-engineering", "database", "mlops"),
+    ),
+    "security-quality": TrackCategory(
+        id="security-quality",
+        name="Security & Quality",
+        description="Application security, secure operations, test strategy, and quality automation.",
+        track_ids=("cybersecurity", "devsecops", "qa-sdet"),
+    ),
+    "systems": TrackCategory(
+        id="systems",
+        name="Systems",
+        description="Operating systems, networking, embedded software, and constrained computing.",
+        track_ids=("systems-engineering", "network-engineering", "embedded-systems"),
+    ),
+    "architecture-leadership": TrackCategory(
+        id="architecture-leadership",
+        name="Architecture & Leadership",
+        description="System architecture, technical strategy, product judgment, and people leadership.",
+        track_ids=("system-design", "solutions-architecture", "engineering-management", "technical-product-management"),
+    ),
+}
+FEATURED_TRACKS: frozenset[TrackId] = frozenset(
+    {"backend", "frontend", "full-stack", "system-design", "ai-ml", "data-science"}
+)
+TRACK_CATEGORY_BY_TRACK: dict[TrackId, TrackCategoryId] = {
+    track_id: category.id
+    for category in TRACK_CATEGORIES.values()
+    for track_id in category.track_ids
+}
+if (
+    sum(len(category.track_ids) for category in TRACK_CATEGORIES.values()) != len(TRACKS)
+    or set(TRACK_CATEGORY_BY_TRACK) != set(TRACKS)
+):
+    raise RuntimeError("Every interview track must belong to exactly one category")
+
+
 SESSION_STORE: dict[str, InterviewSession] = {}
 SESSION_STORE_LOCK = RLock()
 
@@ -1302,6 +1380,11 @@ def health() -> dict[str, str]:
 @app.get("/api/tracks", response_model=list[TrackView])
 def list_interview_tracks() -> list[TrackView]:
     return [track_view(track) for track in TRACKS.values()]
+
+
+@app.get("/api/categories", response_model=list[CategoryView])
+def list_track_categories() -> list[CategoryView]:
+    return [category_view(category) for category in TRACK_CATEGORIES.values()]
 
 
 @app.get("/api/levels", response_model=list[LevelView])
@@ -1422,6 +1505,17 @@ def track_view(track: InterviewTrack) -> TrackView:
         name=track.name,
         description=track.description,
         skills=list(track.skills),
+        categoryId=TRACK_CATEGORY_BY_TRACK[track.id],
+        featured=track.id in FEATURED_TRACKS,
+    )
+
+
+def category_view(category: TrackCategory) -> CategoryView:
+    return CategoryView(
+        id=category.id,
+        name=category.name,
+        description=category.description,
+        trackCount=len(category.track_ids),
     )
 
 
