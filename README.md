@@ -31,8 +31,12 @@ OPENAI_DISABLED=false
 OPENAI_MAX_ATTEMPTS=3
 OPENAI_TIMEOUT_SECONDS=20
 OPENAI_RETRY_BUDGET_SECONDS=35
+OPENAI_MAX_OUTPUT_TOKENS=4000
 RATE_LIMIT_MODE=memory
 ```
+
+`gpt-5-nano` automatically uses `minimal` reasoning effort to keep interview responses within the request timeout.
+Set `OPENAI_REASONING_EFFORT` explicitly only when the selected model supports that value.
 
 Do not commit `.env`. It is ignored by Git. The backend prefers values in `.env` over shell-level environment variables.
 Set `OPENAI_DISABLED=true` when you want to force local fallback mode.
@@ -73,6 +77,7 @@ OPENAI_DISABLED=false
 OPENAI_MAX_ATTEMPTS=3
 OPENAI_TIMEOUT_SECONDS=20
 OPENAI_RETRY_BUDGET_SECONDS=35
+OPENAI_MAX_OUTPUT_TOKENS=4000
 RATE_LIMIT_MODE=platform
 ```
 

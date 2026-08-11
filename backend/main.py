@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import secrets
@@ -34,6 +35,7 @@ MAX_REQUEST_BYTES = 64 * 1024
 MAX_SESSIONS = 500
 SESSION_TTL_SECONDS = 60 * 60
 RETRYABLE_OPENAI_STATUS_CODES = {429, 500, 502, 503, 504}
+LOGGER = logging.getLogger(__name__)
 
 AnswerText = Annotated[str, Field(min_length=1, max_length=MAX_ANSWER_CHARS)]
 FeedbackText = Annotated[str, Field(min_length=1, max_length=500)]
@@ -59,6 +61,11 @@ OPENAI_API_KEY = ENV.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = ENV.get("OPENAI_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4.1-mini"
 FRONTEND_ORIGIN = ENV.get("FRONTEND_ORIGIN") or os.getenv("FRONTEND_ORIGIN") or "http://127.0.0.1:5173"
 OPENAI_KEY_SOURCE = "env_file" if ENV.get("OPENAI_API_KEY") else "process_env" if os.getenv("OPENAI_API_KEY") else "missing"
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT") or ENV.get("OPENAI_REASONING_EFFORT")
+if not OPENAI_REASONING_EFFORT and (
+    OPENAI_MODEL == "gpt-5-nano" or OPENAI_MODEL.startswith("gpt-5-nano-")
+):
+    OPENAI_REASONING_EFFORT = "minimal"
 OPENAI_DISABLED = (os.getenv("OPENAI_DISABLED") or ENV.get("OPENAI_DISABLED") or "").lower() in {
     "1",
     "true",
@@ -73,6 +80,10 @@ OPENAI_TIMEOUT_SECONDS = min(
 OPENAI_RETRY_BUDGET_SECONDS = min(
     max(float(os.getenv("OPENAI_RETRY_BUDGET_SECONDS") or ENV.get("OPENAI_RETRY_BUDGET_SECONDS") or "35"), 1),
     90,
+)
+OPENAI_MAX_OUTPUT_TOKENS = min(
+    max(int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS") or ENV.get("OPENAI_MAX_OUTPUT_TOKENS") or "4000"), 1_200),
+    8_000,
 )
 RATE_LIMIT_MODE = (os.getenv("RATE_LIMIT_MODE") or ENV.get("RATE_LIMIT_MODE") or "memory").lower()
 if RATE_LIMIT_MODE not in {"memory", "platform"}:
@@ -354,6 +365,7 @@ def health() -> dict[str, str]:
         "status": "ok",
         "mode": "fallback" if OPENAI_DISABLED or not OPENAI_API_KEY else "openai",
         "model": OPENAI_MODEL,
+        "reasoningEffort": OPENAI_REASONING_EFFORT or "model-default",
         "keySource": OPENAI_KEY_SOURCE,
         "rateLimitMode": RATE_LIMIT_MODE,
         "sessionStore": "server-memory",
@@ -665,7 +677,13 @@ def with_openai_fallback(
         )
         validated = output_model.model_validate(raw_output).model_dump()
         return {**validated, "mode": "openai"}
-    except Exception:
+    except Exception as exc:
+        LOGGER.warning(
+            "OpenAI fallback used for schema=%s model=%s: %s",
+            schema_name,
+            OPENAI_MODEL,
+            exc,
+        )
         fallback_response = {**fallback, "mode": "fallback"}
         notice = "OpenAI request unavailable; validated local fallback used."
         for field_name in ("extra", "notes", "rationale"):
@@ -676,25 +694,26 @@ def with_openai_fallback(
 
 
 def call_openai(system: str, user: str, *, schema_name: str, schema: dict[str, Any]) -> dict[str, Any]:
-    request_body = json.dumps(
-        {
-            "model": OPENAI_MODEL,
-            "input": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": schema_name,
-                    "strict": True,
-                    "schema": schema,
-                }
-            },
-            "max_output_tokens": 1_200,
-            "store": False,
-        }
-    ).encode("utf-8")
+    payload: dict[str, Any] = {
+        "model": OPENAI_MODEL,
+        "input": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": schema_name,
+                "strict": True,
+                "schema": schema,
+            }
+        },
+        "max_output_tokens": OPENAI_MAX_OUTPUT_TOKENS,
+        "store": False,
+    }
+    if OPENAI_REASONING_EFFORT:
+        payload["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
+    request_body = json.dumps(payload).encode("utf-8")
 
     started_at = time.monotonic()
     for attempt in range(OPENAI_MAX_ATTEMPTS):
@@ -713,13 +732,15 @@ def call_openai(system: str, user: str, *, schema_name: str, schema: dict[str, A
                 data = json.loads(response.read().decode("utf-8"))
             break
         except urllib.error.HTTPError as exc:
-            exc.read(220)
+            error_body = exc.read(2_000)
             if (
                 exc.code not in RETRYABLE_OPENAI_STATUS_CODES
                 or attempt + 1 >= OPENAI_MAX_ATTEMPTS
                 or not wait_for_retry(exc.headers.get("Retry-After") if exc.headers else None, attempt, started_at)
             ):
-                raise RuntimeError(f"OpenAI API returned HTTP {exc.code}") from exc
+                detail = openai_error_detail(error_body)
+                suffix = f": {detail}" if detail else ""
+                raise RuntimeError(f"OpenAI API returned HTTP {exc.code}{suffix}") from exc
         except (TimeoutError, urllib.error.URLError) as exc:
             if attempt + 1 >= OPENAI_MAX_ATTEMPTS or not wait_for_retry(None, attempt, started_at):
                 raise RuntimeError("OpenAI API request failed") from exc
@@ -727,13 +748,28 @@ def call_openai(system: str, user: str, *, schema_name: str, schema: dict[str, A
         raise RuntimeError("OpenAI API retry budget exhausted")
 
     if data.get("status") == "incomplete":
-        raise RuntimeError("OpenAI response was incomplete")
+        details = data.get("incomplete_details")
+        reason = details.get("reason") if isinstance(details, dict) else None
+        suffix = f" ({reason})" if reason else ""
+        raise RuntimeError(f"OpenAI response was incomplete{suffix}")
 
     text = extract_output_text(data)
     parsed = json.loads(text)
     if not isinstance(parsed, dict):
         raise ValueError("OpenAI structured output was not an object")
     return parsed
+
+
+def openai_error_detail(payload: bytes) -> str:
+    try:
+        data = json.loads(payload.decode("utf-8"))
+        error = data.get("error")
+        message = error.get("message") if isinstance(error, dict) else None
+        if not message:
+            return ""
+        return " ".join(str(message).split())[:500]
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+        return ""
 
 
 def wait_for_retry(retry_after: str | None, attempt: int, started_at: float) -> bool:

@@ -191,6 +191,9 @@ class BackendHardeningTests(unittest.TestCase):
         self.assertEqual(output_format["type"], "json_schema")
         self.assertTrue(output_format["strict"])
         self.assertFalse(body["store"])
+        self.assertEqual(body["max_output_tokens"], main.OPENAI_MAX_OUTPUT_TOKENS)
+        if main.OPENAI_REASONING_EFFORT:
+            self.assertEqual(body["reasoning"], {"effort": main.OPENAI_REASONING_EFFORT})
 
     @patch.object(main, "wait_for_retry", return_value=True)
     @patch.object(main.urllib.request, "urlopen")
