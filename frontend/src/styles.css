@@ -29,8 +29,22 @@ textarea {
 
 button:disabled,
 textarea:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.62;
+}
+
+.loading-state {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  justify-items: start;
+  gap: 12px;
+  padding: 24px;
+  background: var(--surface);
+}
+
+.loading-state p {
+  color: var(--muted);
 }
 
 .shell {
@@ -145,12 +159,17 @@ h1 {
   color: var(--ink);
   padding: 10px;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
 }
 
 .agent-button.active {
   border-color: var(--accent);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.agent-button.complete {
+  border-color: #a8cbc3;
+  background: #f4fbf9;
 }
 
 .agent-icon {
@@ -252,6 +271,16 @@ h1 {
   background: #fdfefe;
 }
 
+.follow-up-message {
+  border-color: #9fc9ca;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.stage-result {
+  background: #f4fbf9;
+  border-color: #a8cbc3;
+}
+
 .message-meta {
   margin-bottom: 6px;
   font-weight: 800;
@@ -273,11 +302,59 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.answer-label-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+}
+
 .answer-box label {
-  display: block;
-  margin-bottom: 8px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.answer-limit,
+.answer-guidance {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.answer-limit {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.answer-limit.near-limit {
+  color: #9a5b0a;
+  font-weight: 800;
+}
+
+.answer-limit.limit-reached {
+  color: #a62b2b;
+  font-weight: 800;
+}
+
+.answer-guidance {
+  margin: 4px 0 10px;
+}
+
+.form-error {
+  margin-top: 10px;
+  color: #a62b2b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.completion-box {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.completion-box p {
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 textarea {

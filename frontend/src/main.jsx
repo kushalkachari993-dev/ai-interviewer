@@ -4,180 +4,128 @@ import { Mic, Square, Volume2 } from "lucide-react";
 import "./styles.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
-
-const agents = [
-  {
-    name: "Resume Agent",
-    short: "RS",
-    purpose: "Experience fit",
-    metric: "Resume relevance",
-    question: "Walk me through a project from your resume where your personal contribution changed the outcome.",
-    sample:
-      "I led a customer support automation project that reduced average response time by 34%. I owned the architecture, coordinated with product and support, shipped the first version in six weeks, and measured success through ticket deflection and CSAT.",
-    keywords: ["led", "owned", "impact", "measured", "project", "reduced", "built"],
-  },
-  {
-    name: "Coding Agent",
-    short: "CD",
-    purpose: "Problem solving",
-    metric: "Coding signal",
-    question: "How would you debug a production API that suddenly became slow?",
-    sample:
-      "I would start with metrics and traces to isolate whether latency is from the app, database, network, or a dependency. Then I would compare recent deploys, inspect slow queries, reproduce with production-like inputs, mitigate with rollback or scaling, and write a regression test.",
-    keywords: ["metrics", "traces", "database", "deploy", "reproduce", "rollback", "test"],
-  },
-  {
-    name: "System Design Agent",
-    short: "SD",
-    purpose: "Architecture",
-    metric: "Design depth",
-    question: "Design a scalable interview scheduling system for recruiters and candidates.",
-    sample:
-      "I would model availability, bookings, time zones, interviewers, and candidate preferences. The API would use optimistic locking to prevent double booking, a queue for notifications, calendar provider integrations, and audit logs for reschedules.",
-    keywords: ["model", "api", "queue", "locking", "timezone", "scale", "audit"],
-  },
-  {
-    name: "HR Agent",
-    short: "HR",
-    purpose: "Behavioral fit",
-    metric: "Collaboration",
-    question: "Describe a time you handled disagreement with a teammate.",
-    sample:
-      "A teammate and I disagreed about prioritizing refactor work before a launch. I asked them to define the risk, shared the launch constraint, and we agreed on a smaller cleanup plus a follow-up task. It kept trust intact and still protected delivery.",
-    keywords: ["disagreed", "risk", "shared", "agreed", "trust", "delivery", "teammate"],
-  },
-  {
-    name: "Evaluation Agent",
-    short: "EV",
-    purpose: "Final synthesis",
-    metric: "Evaluation quality",
-    question: "What is the strongest hiring signal so far, and what is the largest remaining risk?",
-    sample:
-      "The candidate should advance because they showed clear ownership, structured debugging, practical system design choices, and mature collaboration. I would probe depth in distributed systems and code quality in a live round.",
-    keywords: ["advance", "ownership", "structured", "design", "collaboration", "probe", "depth"],
-  },
-];
+const MAX_ANSWER_CHARS = 4800;
+const SESSION_STORAGE_KEY = "aiInterviewerSessionId";
 
 function App() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [answers, setAnswers] = useState(Array(agents.length).fill(""));
-  const [results, setResults] = useState(Array(agents.length).fill(null));
-  const [questions, setQuestions] = useState(agents.map((agent) => agent.question));
-  const [finalEvaluation, setFinalEvaluation] = useState(null);
+  const [session, setSession] = useState(null);
   const [draft, setDraft] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGeneratingQuestion, setIsGeneratingQuestion] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [muted, setMuted] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState("Ready");
   const recognitionRef = useRef(null);
 
-  const activeAgent = { ...agents[activeIndex], question: questions[activeIndex] };
-  const scores = results.map((result) => Number(result?.score || 0));
-  const completed = answers.filter(Boolean).length;
-  const isEditingSavedAnswer = Boolean(answers[activeIndex]) && draft === answers[activeIndex];
+  const stages = session?.stages || [];
+  const activeStage = stages[session?.activeIndex || 0];
+  const isFollowUp = session?.phase === "follow_up";
+  const isComplete = session?.phase === "complete";
+  const currentPrompt = isFollowUp ? activeStage?.followUpQuestion : activeStage?.question;
+  const finalEvaluation = session?.finalEvaluation;
+  const answerLimitState =
+    draft.length >= MAX_ANSWER_CHARS ? "limit-reached" : draft.length >= MAX_ANSWER_CHARS * 0.9 ? "near-limit" : "";
 
   useEffect(() => {
-    generateQuestion(0, answers, results, { silent: true });
+    let cancelled = false;
+
+    async function initializeSession() {
+      try {
+        const savedId = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+        let nextSession = null;
+        if (savedId) {
+          try {
+            nextSession = await getJson(`/api/sessions/${encodeURIComponent(savedId)}`);
+          } catch {
+            window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          }
+        }
+        if (!nextSession) nextSession = await postJson("/api/sessions");
+        if (!cancelled) applySession(nextSession);
+      } catch (error) {
+        if (!cancelled) setErrorMessage(error.message);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    initializeSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const feedback = useMemo(() => {
     if (finalEvaluation) {
       return {
-        average: finalEvaluation.overallScore || 0,
-        strengths: finalEvaluation.strengths?.length
-          ? finalEvaluation.strengths
-          : ["Awaiting stronger evidence across the interview."],
-        weaknesses: finalEvaluation.weaknesses?.length
-          ? finalEvaluation.weaknesses
-          : ["No major weakness surfaced in this pass."],
+        average: finalEvaluation.overallScore,
+        strengths: finalEvaluation.strengths,
+        weaknesses: finalEvaluation.weaknesses,
         recommendation: finalEvaluation.hiringRecommendation,
         extra: finalEvaluation.extra,
       };
     }
 
-    const average = scores.reduce((sum, score) => sum + score, 0) / agents.length;
+    const completedResults = stages.map((stage) => stage.result).filter(Boolean);
     return {
-      average,
-      strengths: results.flatMap((result) => result?.strengths || []).slice(0, 5),
-      weaknesses: results.flatMap((result) => result?.weaknesses || []).slice(0, 5),
-      recommendation: "Complete the interview to generate a recommendation.",
-      extra: completed
-        ? `${completed} of ${agents.length} agents completed. Voice input and prompt playback are available where the browser allows them.`
-        : "Voice support is available for candidate answers and reading prompts aloud.",
+      average: session?.partialScore || 0,
+      strengths: completedResults.flatMap((result) => result.strengths || []).slice(0, 5),
+      weaknesses: completedResults.flatMap((result) => result.weaknesses || []).slice(0, 5),
+      recommendation: "Complete every stage and follow-up to generate a recommendation.",
+      extra: session?.completedStages
+        ? `${session.completedStages} of ${session.totalStages} stages completed. The score reflects completed stages only.`
+        : "Each interview stage includes one required follow-up before it is scored.",
     };
-  }, [completed, finalEvaluation, results, scores]);
+  }, [finalEvaluation, session, stages]);
+
+  function applySession(nextSession) {
+    setSession(nextSession);
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, nextSession.sessionId);
+  }
+
+  async function startNewInterview() {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const nextSession = await postJson("/api/sessions");
+      applySession(nextSession);
+      setDraft("");
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function submitAnswer(event) {
     event.preventDefault();
-    if (!draft.trim() || isSubmitting) return;
+    if (!draft.trim() || isSubmitting || !session || isComplete) return;
 
-    const nextAnswers = [...answers];
-    nextAnswers[activeIndex] = draft.trim();
-    setAnswers(nextAnswers);
     setIsSubmitting(true);
-
+    setErrorMessage("");
     try {
-      const agentResult = await postJson("/api/agent", { agent: activeAgent, answer: draft.trim() });
-      const nextResults = [...results];
-      nextResults[activeIndex] = agentResult;
-      setResults(nextResults);
+      const nextSession = await postJson(`/api/sessions/${encodeURIComponent(session.sessionId)}/answer`, {
+        answer: draft.trim(),
+        phase: session.phase,
+        version: session.version,
+      });
+      applySession(nextSession);
+      setDraft("");
 
-      if (nextAnswers.filter(Boolean).length === agents.length) {
-        setFinalEvaluation(await postJson("/api/evaluation", { agents, answers: nextAnswers, results: nextResults }));
-      } else {
-        setFinalEvaluation(null);
-      }
-
-      if (activeIndex < agents.length - 1) {
-        const nextIndex = activeIndex + 1;
-        const nextQuestion = await generateQuestion(nextIndex, nextAnswers, nextResults);
-        setActiveIndex(nextIndex);
-        setDraft(nextAnswers[nextIndex] || "");
-        if (!muted) speak(nextQuestion);
-      } else {
-        setDraft("");
+      if (nextSession.phase !== "complete" && !muted) {
+        const nextStage = nextSession.stages[nextSession.activeIndex];
+        const nextPrompt = nextSession.phase === "follow_up" ? nextStage.followUpQuestion : nextStage.question;
+        speak(nextPrompt);
       }
     } catch (error) {
-      setFinalEvaluation({
-        overallScore: 0,
-        strengths: [],
-        weaknesses: ["The backend request failed."],
-        hiringRecommendation: "Retry after confirming the FastAPI server is running.",
-        extra: error.message,
-      });
+      setErrorMessage(error.message);
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function selectAgent(index) {
-    setActiveIndex(index);
-    setDraft(answers[index] || "");
-  }
-
-  async function generateQuestion(index = activeIndex, nextAnswers = answers, nextResults = results, options = {}) {
-    if (!options.silent) setIsGeneratingQuestion(true);
-    try {
-      const payloadAgent = { ...agents[index], question: questions[index] };
-      const generated = await postJson("/api/question", {
-        agent: payloadAgent,
-        agentIndex: index,
-        answers: nextAnswers,
-        results: nextResults,
-      });
-      const nextQuestions = [...questions];
-      nextQuestions[index] = generated.question || agents[index].question;
-      setQuestions(nextQuestions);
-      return nextQuestions[index];
-    } catch {
-      return questions[index] || agents[index].question;
-    } finally {
-      if (!options.silent) setIsGeneratingQuestion(false);
-    }
-  }
-
   function speak(text) {
-    if (muted || !("speechSynthesis" in window)) return;
+    if (muted || !text || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.95;
@@ -198,11 +146,12 @@ function App() {
       recognition.lang = "en-US";
       recognition.onstart = () => setVoiceStatus("Listening");
       recognition.onend = () => setVoiceStatus("Ready");
+      recognition.onerror = () => setVoiceStatus("Try again");
       recognition.onresult = (event) => {
         const transcript = Array.from(event.results)
           .map((result) => result[0].transcript)
           .join(" ");
-        setDraft(transcript);
+        setDraft(transcript.slice(0, MAX_ANSWER_CHARS));
       };
       recognitionRef.current = recognition;
     }
@@ -210,36 +159,57 @@ function App() {
     recognitionRef.current.start();
   }
 
+  if (isLoading && !session) {
+    return (
+      <main className="loading-state">
+        <h1>Preparing your interview…</h1>
+        <p>The server is creating a secure interview session.</p>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="loading-state">
+        <h1>Interview unavailable</h1>
+        <p>{errorMessage || "The interview session could not be created."}</p>
+        <button className="primary-button" onClick={startNewInterview} type="button">
+          Try again
+        </button>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
-      <aside className="sidebar" aria-label="Interview agents">
+      <aside className="sidebar" aria-label="Interview stages">
         <div className="brand">
           <span className="brand-mark">AI</span>
           <div>
             <h1>AI Interviewer Platform</h1>
-            <p>FastAPI + React GenAI interview workflow.</p>
+            <p>Server-scored adaptive interview workflow.</p>
           </div>
         </div>
 
         <section className="panel">
           <div className="section-title">
-            <span>Agents</span>
-            <span className="count">{agents.length}</span>
+            <span>Stages</span>
+            <span className="count">{session.totalStages}</span>
           </div>
           <div className="agent-list">
-            {agents.map((agent, index) => (
-              <button
-                className={`agent-button ${index === activeIndex ? "active" : ""}`}
-                key={agent.name}
-                onClick={() => selectAgent(index)}
-                type="button"
+            {stages.map((stage, index) => (
+              <div
+                className={`agent-button ${index === session.activeIndex && !isComplete ? "active" : ""} ${stage.status}`}
+                key={stage.name}
               >
-                <span className="agent-icon">{agent.short}</span>
+                <span className="agent-icon">{stage.short}</span>
                 <span>
-                  <span className="agent-name">{agent.name}</span>
-                  <span className="agent-purpose">{agent.purpose}</span>
+                  <span className="agent-name">{stage.name}</span>
+                  <span className="agent-purpose">
+                    {stage.status === "complete" ? "Completed" : stage.status === "follow_up" ? "Follow-up" : stage.purpose}
+                  </span>
                 </span>
-              </button>
+              </div>
             ))}
           </div>
         </section>
@@ -250,10 +220,10 @@ function App() {
             <span className="status-pill">{voiceStatus}</span>
           </div>
           <div className="voice-actions">
-            <button className="icon-button" onClick={startListening} title="Start voice input" type="button">
+            <button className="icon-button" disabled={isComplete} onClick={startListening} title="Start voice input" type="button">
               <Mic size={18} />
             </button>
-            <button className="icon-button" onClick={() => speak(activeAgent.question)} title="Read current question" type="button">
+            <button className="icon-button" disabled={isComplete} onClick={() => speak(currentPrompt)} title="Read current question" type="button">
               <Volume2 size={18} />
             </button>
             <button
@@ -274,73 +244,87 @@ function App() {
       <section className="workspace" aria-label="Interview workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">{activeAgent.name}</p>
-            <h2>{activeAgent.question}</h2>
+            <p className="eyebrow">
+              {isComplete ? "Interview complete" : `${activeStage.name}${isFollowUp ? " · Required follow-up" : ""}`}
+            </p>
+            <h2>{isComplete ? "Your validated evaluation is ready." : currentPrompt}</h2>
           </div>
-          <div className="timer">{activeIndex + 1} of {agents.length}</div>
+          <div className="timer">{session.completedStages} of {session.totalStages}</div>
         </header>
 
         <section className="conversation" aria-live="polite">
-          {agents.map((agent, index) => (
+          {stages.map((stage, index) => (
             <ConversationBlock
-              agent={{ ...agent, question: questions[index] }}
-              answer={answers[index]}
-              key={agent.name}
-              result={results[index]}
-              show={index <= activeIndex || answers[index]}
+              key={stage.name}
+              show={index <= session.activeIndex || stage.status === "complete"}
+              stage={stage}
             />
           ))}
         </section>
 
-        <form className="answer-box" onSubmit={submitAnswer}>
-          <label htmlFor="answerInput">
-            {isEditingSavedAnswer ? "Saved candidate response" : "Candidate response"}
-          </label>
-          <textarea
-            disabled={isSubmitting}
-            id="answerInput"
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Type or dictate the candidate answer..."
-            rows={6}
-            value={draft}
-          />
-          <div className="answer-actions">
-            <button
-              className="secondary-button"
-              disabled={isSubmitting || isGeneratingQuestion || Boolean(answers[activeIndex])}
-              onClick={() => generateQuestion()}
-              type="button"
-            >
-              {isGeneratingQuestion ? "Generating..." : "New question"}
+        {isComplete ? (
+          <section className="answer-box completion-box">
+            <h3>Interview complete</h3>
+            <p>All four stages and their follow-ups were scored by the server.</p>
+            <button className="primary-button" onClick={startNewInterview} type="button">
+              Start new interview
             </button>
-            <button className="secondary-button" onClick={() => setDraft(activeAgent.sample)} type="button">
-              Use sample
-            </button>
-            <button className="primary-button" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Asking AI..." : "Submit answer"}
-            </button>
-          </div>
-        </form>
+          </section>
+        ) : (
+          <form className="answer-box" onSubmit={submitAnswer}>
+            <div className="answer-label-row">
+              <label htmlFor="answerInput">{isFollowUp ? "Follow-up response" : "Candidate response"}</label>
+              <span className={`answer-limit ${answerLimitState}`} id="answerLimit">
+                {draft.length.toLocaleString()} / {MAX_ANSWER_CHARS.toLocaleString()} characters
+              </span>
+            </div>
+            <p className="answer-guidance" id="answerGuidance">
+              {isFollowUp
+                ? "This response completes the current stage and unlocks its score."
+                : "Keep it focused—up to roughly 700–800 words. A follow-up comes next."}
+            </p>
+            <textarea
+              aria-describedby="answerGuidance answerLimit"
+              disabled={isSubmitting}
+              id="answerInput"
+              maxLength={MAX_ANSWER_CHARS}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={isFollowUp ? "Answer the required follow-up…" : "Type or dictate the candidate answer…"}
+              rows={6}
+              value={draft}
+            />
+            {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
+            <div className="answer-actions">
+              {!isFollowUp && activeStage.sample && (
+                <button className="secondary-button" disabled={isSubmitting} onClick={() => setDraft(activeStage.sample)} type="button">
+                  Use sample
+                </button>
+              )}
+              <button className="primary-button" disabled={isSubmitting || !draft.trim()} type="submit">
+                {isSubmitting ? "Asking AI…" : isFollowUp ? "Submit follow-up" : "Submit answer"}
+              </button>
+            </div>
+          </form>
+        )}
       </section>
 
       <aside className="output" aria-label="Interview output">
         <section className="scorecard">
           <div className="section-title">
-            <span>Output</span>
+            <span>Validated output</span>
             <span className="score">{Math.round(feedback.average)}</span>
           </div>
           <h3>Scorecard</h3>
           <div className="metric-list">
-            {agents.map((agent, index) => {
-              const score = finalEvaluation?.scorecard?.[index]?.score ?? scores[index];
-              return <Metric agent={agent} key={agent.name} score={score} />;
-            })}
+            {stages.map((stage) => (
+              <Metric key={stage.name} metric={stage.metric} score={stage.result?.score ?? 0} />
+            ))}
           </div>
         </section>
 
         <section className="evaluation-grid">
-          <EvaluationList title="Strengths" values={feedback.strengths} fallback="Awaiting stronger evidence across the interview." />
-          <EvaluationList title="Weaknesses" values={feedback.weaknesses} fallback="Incomplete interview coverage." />
+          <EvaluationList title="Strengths" values={feedback.strengths} fallback="Awaiting completed stage evidence." />
+          <EvaluationList title="Weaknesses" values={feedback.weaknesses} fallback="No completed stage has been scored yet." />
           <article className="recommendation">
             <h3>Hiring recommendation</h3>
             <p>{feedback.recommendation}</p>
@@ -355,43 +339,53 @@ function App() {
   );
 }
 
-function ConversationBlock({ agent, answer, result, show }) {
+function ConversationBlock({ stage, show }) {
   if (!show) return null;
-  const mode = result?.mode === "openai" ? "GenAI" : "Local";
+  const mode = stage.result?.mode === "openai" ? "GenAI" : "Local";
   return (
     <>
       <article className="message">
-        <div className="message-meta">{agent.name}</div>
-        <p>{agent.question}</p>
+        <div className="message-meta">{stage.name}</div>
+        <p>{stage.question}</p>
       </article>
-      {answer && (
+      {stage.answer && (
         <article className="message candidate">
-          <div className="message-meta">
-            Candidate answer - {Number(result?.score || 0)}/100 - {mode}
-          </div>
-          <p>{answer}</p>
-          {result?.notes && <p className="agent-note">{result.notes}</p>}
+          <div className="message-meta">Candidate primary answer</div>
+          <p>{stage.answer}</p>
         </article>
       )}
-      {result?.followUpQuestion && (
-        <article className="message">
-          <div className="message-meta">{agent.name} follow-up</div>
-          <p>{result.followUpQuestion}</p>
+      {stage.followUpQuestion && (
+        <article className="message follow-up-message">
+          <div className="message-meta">{stage.name} · Required follow-up</div>
+          <p>{stage.followUpQuestion}</p>
+        </article>
+      )}
+      {stage.followUpAnswer && (
+        <article className="message candidate">
+          <div className="message-meta">Candidate follow-up answer</div>
+          <p>{stage.followUpAnswer}</p>
+        </article>
+      )}
+      {stage.result && (
+        <article className="message stage-result">
+          <div className="message-meta">Validated stage result · {stage.result.score}/100 · {mode}</div>
+          <p>{stage.result.notes}</p>
         </article>
       )}
     </>
   );
 }
 
-function Metric({ agent, score }) {
+function Metric({ metric, score }) {
+  const safeScore = Math.max(0, Math.min(Number(score) || 0, 100));
   return (
     <div className="metric">
       <div className="metric-row">
-        <strong>{agent.metric}</strong>
-        <span>{score}/100</span>
+        <strong>{metric}</strong>
+        <span>{safeScore}/100</span>
       </div>
       <div className="bar" aria-hidden="true">
-        <div className="bar-fill" style={{ width: `${score}%` }} />
+        <div className="bar-fill" style={{ width: `${safeScore}%` }} />
       </div>
     </div>
   );
@@ -411,14 +405,34 @@ function EvaluationList({ title, values, fallback }) {
   );
 }
 
+async function getJson(path) {
+  return requestJson(path, { method: "GET" });
+}
+
 async function postJson(path, payload) {
-  const response = await fetch(`${API_BASE}${path}`, {
+  return requestJson(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
   });
+}
 
+async function requestJson(path, options) {
+  const response = await fetch(`${API_BASE}${path}`, options);
   if (!response.ok) {
+    if (response.status === 404) throw new Error("Your interview session expired. Start a new interview.");
+    if (response.status === 409) throw new Error("This interview step was already submitted. Refresh to continue.");
+    if (response.status === 429) {
+      const retryAfter = response.headers.get("Retry-After");
+      const waitTime = retryAfter ? `about ${retryAfter} seconds` : "a moment";
+      throw new Error(`Several AI requests were made quickly. Please wait ${waitTime} and try again.`);
+    }
+    if (response.status === 413) {
+      throw new Error(`This interview request is too large. Keep each answer under ${MAX_ANSWER_CHARS.toLocaleString()} characters.`);
+    }
+    if (response.status === 422) {
+      throw new Error("This answer exceeds an allowed limit. Shorten it and try again.");
+    }
     const detail = await response.text();
     throw new Error(detail || `Request failed with ${response.status}`);
   }
